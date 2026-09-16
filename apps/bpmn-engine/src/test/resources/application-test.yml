@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: 'jdbc:h2:mem:tas-bpmn;DB_CLOSE_DELAY=-1'
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+flowable:
+  database-schema-update: true
+  database-schema: ''
+  # Blanked, not omitted: the main application.yml is still on the classpath
+  # and a profile overlay overrides keys rather than removing them.
+  #
+  # Production puts Flowable in its own `flowable` schema (see the main
+  # application.yml). Reproducing that on H2 is not worth the effort: H2 2.x
+  # folds unquoted identifiers to upper case, so Flowable's setSchema("flowable")
+  # and its Liquibase changelogs disagree about the name and one of them always
+  # fails. Schema placement is a deployment concern and is exercised against
+  # PostgreSQL; these tests exercise the apiInvoker delegate's behaviour.
+  async-executor-activate: false
+
+tas:
+  api:
+    base-url: http://localhost:0
+  webhook:
+    enabled: false

@@ -1,0 +1,308 @@
+@if (element(); as el) {
+  <div class="tas-props">
+
+    <header class="tas-props__header">
+      <h3>{{ el.displayKey || el.jsonKey }}</h3>
+      <code>{{ FieldType[el.fieldType] }}</code>
+    </header>
+
+    <!-- Identity -->
+    <section class="tas-props__group">
+      <label>
+        <span>Key</span>
+        <input
+          type="text"
+          class="tas-input"
+          [value]="el.jsonKey"
+          (change)="onText('jsonKey', $event)"
+        />
+        <small>The submission property this field writes. Must be unique.</small>
+      </label>
+
+      <label>
+        <span>Label</span>
+        <input
+          type="text"
+          class="tas-input"
+          [value]="el.displayKey ?? ''"
+          (change)="onText('displayKey', $event)"
+        />
+        <small>A display key in production; plain text is fine while drafting.</small>
+      </label>
+    </section>
+
+    @if (!isContainer()) {
+      <!-- Behaviour -->
+      <section class="tas-props__group">
+        <label class="tas-props__check">
+          <input type="checkbox" [checked]="el.required === true" (change)="onFlag('required', $event)" />
+          <span>Required</span>
+        </label>
+
+        <label class="tas-props__check">
+          <input type="checkbox" [checked]="el.hidden === true" (change)="onFlag('hidden', $event)" />
+          <span>Hidden by default</span>
+        </label>
+
+        <label class="tas-props__check">
+          <input
+            type="checkbox"
+            [checked]="el.clearOnHide === true"
+            (change)="onFlag('clearOnHide', $event)"
+          />
+          <span>Clear the value when hidden</span>
+        </label>
+        <small class="tas-props__note">
+          Without this, a value entered and then hidden is still submitted — carrying data the
+          officer believes they removed.
+        </small>
+      </section>
+
+      <!-- Trust boundary -->
+      <section class="tas-props__group tas-props__group--security">
+        <h4>Who may set this value</h4>
+
+        <label>
+          <span>Source</span>
+          <select class="tas-input" [value]="el.source ?? ''" (change)="onSourceChange($event)">
+            <option value="">The user types it</option>
+            <option value="server">The server owns it</option>
+            <option value="api_prefill">Prefilled, user may change</option>
+          </select>
+          <small>
+            <strong>The server owns it</strong> renders read-only and the API rejects the
+            submission if the value changed. Use it for anything computed (ADR-006).
+          </small>
+        </label>
+
+        <fieldset class="tas-props__roles">
+          <legend>Read-only for these roles</legend>
+          @for (role of roleOptions; track role) {
+            <label class="tas-props__check">
+              <input
+                type="checkbox"
+                [checked]="isRoleReadOnly(role)"
+                (change)="toggleRole(role, $event)"
+              />
+              <span>{{ role }}</span>
+            </label>
+          }
+          <small>Enforced server-side on submit, not just hidden in the browser.</small>
+        </fieldset>
+      </section>
+
+      <!-- Validation -->
+      @if (isText()) {
+        <section class="tas-props__group">
+          <h4>Validation</h4>
+          <label>
+            <span>Minimum length</span>
+            <input
+              type="number"
+              class="tas-input"
+              [value]="el.minLength ?? ''"
+              (change)="onNumber('minLength', $event)"
+            />
+          </label>
+          <label>
+            <span>Maximum length</span>
+            <input
+              type="number"
+              class="tas-input"
+              [value]="el.maxLength ?? ''"
+              (change)="onNumber('maxLength', $event)"
+            />
+          </label>
+        </section>
+      }
+
+      @if (isNumeric()) {
+        <section class="tas-props__group">
+          <h4>Number</h4>
+          <label>
+            <span>Minimum</span>
+            <input type="number" class="tas-input" [value]="el.min ?? ''" (change)="onNumber('min', $event)" />
+          </label>
+          <label>
+            <span>Maximum</span>
+            <input type="number" class="tas-input" [value]="el.max ?? ''" (change)="onNumber('max', $event)" />
+          </label>
+          <label>
+            <span>Currency</span>
+            <input
+              type="text"
+              class="tas-input"
+              placeholder="GBP"
+              [value]="el.currency ?? ''"
+              (change)="onText('currency', $event)"
+            />
+            <small>Set this and the field is treated as money throughout.</small>
+          </label>
+        </section>
+      }
+
+      @if (isFormula()) {
+        <section class="tas-props__group">
+          <h4>Formula</h4>
+          <label>
+            <span>Expression</span>
+            <input
+              type="text"
+              class="tas-input"
+              placeholder="&#64;assessedAmount - &#64;declaredAmount"
+              [value]="el.formula ?? ''"
+              (change)="onText('formula', $event)"
+            />
+            <small>
+              Arithmetic over <code>&#64;fieldKey</code> references only. There are no functions —
+              no SUM, ROUND, MIN, MAX or IF. Anything needing them is computed server-side
+              (ADR-006), and this value is indicative on screen.
+            </small>
+          </label>
+        </section>
+      }
+
+      @if (isChoice()) {
+        <section class="tas-props__group">
+          <h4>Options</h4>
+          @for (option of el.options ?? []; track $index) {
+            <div class="tas-props__option">
+              <input
+                type="text"
+                class="tas-input"
+                [value]="option.label"
+                (change)="updateOption($index, 'label', $event)"
+                placeholder="Label"
+              />
+              <input
+                type="text"
+                class="tas-input"
+                [value]="option.value"
+                (change)="updateOption($index, 'value', $event)"
+                placeholder="VALUE"
+              />
+              <button type="button" class="tas-btn tas-btn--icon" (click)="removeOption($index)">
+                ×
+              </button>
+            </div>
+          }
+          <button type="button" class="tas-btn" (click)="addOption()">Add option</button>
+        </section>
+      }
+
+      <!-- Dependencies -->
+      <section class="tas-props__group">
+        <h4>Rules</h4>
+        <small class="tas-props__note">
+          Conditional behaviour. The server resolves these too, so a conditionally required field
+          is a control and not only a presentation choice.
+        </small>
+
+        @for (rule of rules; track $index; let ruleIndex = $index) {
+          <div class="tas-rule">
+            <div class="tas-rule__head">
+              <span>When</span>
+              <select
+                class="tas-input tas-input--inline"
+                [value]="rule.combinator ?? 'AND'"
+                (change)="setCombinator(ruleIndex, $event)"
+              >
+                <option value="AND">all of</option>
+                <option value="OR">any of</option>
+              </select>
+              <button type="button" class="tas-btn tas-btn--icon" (click)="removeRule(ruleIndex)">
+                ×
+              </button>
+            </div>
+
+            @for (condition of rule.conditions; track $index; let conditionIndex = $index) {
+              <div class="tas-rule__condition">
+                <select
+                  class="tas-input"
+                  [value]="condition.field"
+                  (change)="updateCondition(ruleIndex, conditionIndex, 'field', $event)"
+                >
+                  @for (key of availableKeys(); track key) {
+                    <option [value]="key">{{ key }}</option>
+                  }
+                </select>
+
+                <select
+                  class="tas-input"
+                  [value]="condition.operator"
+                  (change)="updateCondition(ruleIndex, conditionIndex, 'operator', $event)"
+                >
+                  @for (operator of operators; track operator.value) {
+                    <option [value]="operator.value">{{ operator.label }}</option>
+                  }
+                </select>
+
+                @if (condition.operator !== 'empty' && condition.operator !== 'notEmpty') {
+                  <input
+                    type="text"
+                    class="tas-input"
+                    [value]="$any(condition.value) ?? ''"
+                    (change)="updateCondition(ruleIndex, conditionIndex, 'value', $event)"
+                    placeholder="value"
+                  />
+                }
+
+                <button
+                  type="button"
+                  class="tas-btn tas-btn--icon"
+                  (click)="removeCondition(ruleIndex, conditionIndex)"
+                >−</button>
+              </div>
+            }
+
+            <button type="button" class="tas-btn tas-btn--small" (click)="addCondition(ruleIndex)">
+              Add condition
+            </button>
+
+            <div class="tas-rule__effect">
+              <span>then</span>
+              <select
+                class="tas-input"
+                [value]="effectTypeOf(rule)"
+                (change)="setEffectType(ruleIndex, $event)"
+              >
+                <option value="setVisibility">show / hide</option>
+                <option value="setRequired">require / relax</option>
+                <option value="filterOptions">narrow the options</option>
+              </select>
+
+              @if (effectTypeOf(rule) === 'filterOptions') {
+                <input
+                  type="text"
+                  class="tas-input"
+                  [value]="allowedValuesOf(rule)"
+                  (change)="setAllowedValues(ruleIndex, $event)"
+                  placeholder="VALUE_A, VALUE_B"
+                />
+              } @else {
+                <select
+                  class="tas-input"
+                  [value]="effectValueOf(rule)"
+                  (change)="setEffectValue(ruleIndex, $event)"
+                >
+                  <option value="true">yes</option>
+                  <option value="false">no</option>
+                </select>
+              }
+            </div>
+          </div>
+        }
+
+        @if (availableKeys().length === 0) {
+          <small class="tas-props__note">
+            Add another field first — a rule has to watch something.
+          </small>
+        } @else {
+          <button type="button" class="tas-btn" (click)="addRule()">Add rule</button>
+        }
+      </section>
+    }
+  </div>
+} @else {
+  <p class="tas-muted tas-props__empty">Select a field to edit its properties.</p>
+}

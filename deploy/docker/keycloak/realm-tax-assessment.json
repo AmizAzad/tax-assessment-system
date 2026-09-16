@@ -1,0 +1,406 @@
+{
+  "realm": "tax-assessment",
+  "enabled": true,
+  "displayName": "Tax Assessment System (local development)",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 3600,
+  "roles": {
+    "realm": [
+      {
+        "name": "TA_TAXPAYER",
+        "description": "Taxpayer: own assessments, notices, objections"
+      },
+      {
+        "name": "TA_ASSESSOR",
+        "description": "Prepare assessment, record adjustments"
+      },
+      {
+        "name": "TA_SPECIALIST",
+        "description": "Technical opinion on referred cases"
+      },
+      {
+        "name": "TA_REVIEWER",
+        "description": "Independent review; return for rework"
+      },
+      {
+        "name": "TA_APPROVER_L1",
+        "description": "Approve below threshold 1"
+      },
+      {
+        "name": "TA_APPROVER_L2",
+        "description": "Approve between thresholds 1 and 2"
+      },
+      {
+        "name": "TA_APPROVER_L3",
+        "description": "Approve above threshold 2"
+      },
+      {
+        "name": "TA_SUPERVISOR",
+        "description": "Assign, reassign, monitor SLA, escalate"
+      },
+      {
+        "name": "TA_OBJECTION_OFFICER",
+        "description": "Handle objections"
+      },
+      {
+        "name": "TA_COMMITTEE_MEMBER",
+        "description": "Vote on objection outcomes"
+      },
+      {
+        "name": "TA_APPEALS_OFFICER",
+        "description": "Manage appeals"
+      },
+      {
+        "name": "TA_NOTICE_ISSUER",
+        "description": "Sign and despatch notices"
+      },
+      {
+        "name": "TA_AUDITOR_READONLY",
+        "description": "Read-only oversight and audit access"
+      },
+      {
+        "name": "TA_ADMIN",
+        "description": "Configure rule sets, templates, workflows, masters"
+      },
+      {
+        "name": "SYSTEM",
+        "description": "The process engine acting as itself. Granted exactly the routes a service task calls."
+      },
+      {
+        "name": "MFA_REQUIRED",
+        "description": "Holders must present a second factor. Assigned to every officer account."
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "tas-api",
+      "name": "Tax Assessment API",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "bearerOnly": true,
+      "publicClient": false,
+      "secret": "local-dev-only-not-a-real-secret"
+    },
+    {
+      "clientId": "tas-web",
+      "name": "Tax Assessment SPA",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:4200/*"],
+      "webOrigins": ["http://localhost:4200"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "tas-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "tas-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "tas-bpmn",
+      "name": "Tax Assessment process engine",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "bpmn_local_dev_only",
+      "protocolMappers": [
+        {
+          "name": "tas-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "tas-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ],
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email"]
+    }
+  ],
+  "users": [
+    {
+      "username": "assessor",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "assessor@example.test",
+      "firstName": "Ada",
+      "lastName": "Assessor",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["TA_ASSESSOR", "MFA_REQUIRED"]
+    },
+    {
+      "username": "reviewer",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "reviewer@example.test",
+      "firstName": "Rui",
+      "lastName": "Reviewer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["TA_REVIEWER", "MFA_REQUIRED"]
+    },
+    {
+      "username": "approver",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "approver@example.test",
+      "firstName": "Ali",
+      "lastName": "Approver",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["TA_APPROVER_L1", "MFA_REQUIRED"]
+    },
+    {
+      "username": "supervisor",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "supervisor@example.test",
+      "firstName": "Sam",
+      "lastName": "Supervisor",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["TA_SUPERVISOR", "MFA_REQUIRED"]
+    },
+    {
+      "username": "admin-tax",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "admin@example.test",
+      "firstName": "Ash",
+      "lastName": "Administrator",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["TA_ADMIN", "TA_AUDITOR_READONLY", "MFA_REQUIRED"]
+    },
+    {
+      "username": "notice-issuer",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "notice-issuer@example.test",
+      "firstName": "Nadia",
+      "lastName": "Issuer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["TA_NOTICE_ISSUER", "MFA_REQUIRED"]
+    },
+    {
+      "username": "objection-officer",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "objection-officer@example.test",
+      "firstName": "Omar",
+      "lastName": "Objections",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["TA_OBJECTION_OFFICER", "MFA_REQUIRED"]
+    },
+    {
+      "username": "appeals-officer",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "appeals-officer@example.test",
+      "firstName": "Ana",
+      "lastName": "Appeals",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["TA_APPEALS_OFFICER", "MFA_REQUIRED"]
+    },
+    {
+      "username": "committee-member",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "committee-member@example.test",
+      "firstName": "Chris",
+      "lastName": "Committee",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["TA_COMMITTEE_MEMBER", "MFA_REQUIRED"]
+    },
+    {
+      "username": "acme-finance",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "finance@acmetrading.example",
+      "firstName": "Faisal",
+      "lastName": "Finance",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["TA_TAXPAYER"]
+    },
+    {
+      "username": "service-account-tas-bpmn",
+      "enabled": true,
+      "serviceAccountClientId": "tas-bpmn",
+      "realmRoles": ["SYSTEM"]
+    }
+  ],
+  "authenticationFlows": [
+    {
+      "alias": "officer-mfa-browser",
+      "description": "Browser login that demands a second factor from anyone holding MFA_REQUIRED. Not bound by default; see docs/running-locally.md.",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-cookie",
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false
+        },
+        {
+          "authenticator": "identity-provider-redirector",
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false
+        },
+        {
+          "flowAlias": "officer-mfa-forms",
+          "requirement": "ALTERNATIVE",
+          "priority": 30,
+          "userSetupAllowed": false,
+          "autheticatorFlow": true
+        }
+      ]
+    },
+    {
+      "alias": "officer-mfa-forms",
+      "description": "Username, password, then a conditional second factor.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false
+        },
+        {
+          "flowAlias": "officer-mfa-conditional-otp",
+          "requirement": "CONDITIONAL",
+          "priority": 20,
+          "userSetupAllowed": false,
+          "autheticatorFlow": true
+        }
+      ]
+    },
+    {
+      "alias": "officer-mfa-conditional-otp",
+      "description": "A one-time code, required only of accounts holding MFA_REQUIRED.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-role",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticatorConfig": "mfa-required-role"
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": true,
+          "autheticatorFlow": false
+        }
+      ]
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "mfa-required-role",
+      "config": {
+        "condUserRole": "MFA_REQUIRED",
+        "negate": "false"
+      }
+    }
+  ],
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "otpPolicyLookAheadWindow": 1
+}

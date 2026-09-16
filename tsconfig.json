@@ -1,0 +1,18 @@
+{
+  // Solution file. Holds no sources of its own: it exists so that
+  // `tsc --build` at the root type-checks every workspace in dependency order,
+  // which is what `npm run typecheck` and the verify gate invoke.
+  //
+  // apps/web is absent deliberately. Angular projects are built through the
+  // Angular CLI, which drives tsconfig.app.json and tsconfig.spec.json with
+  // its own compiler plugin; referencing them here would type-check templates
+  // without that plugin and report errors that are not real.
+  "files": [],
+  "references": [
+    { "path": "packages/decimal" },
+    { "path": "packages/contracts" },
+    { "path": "packages/dynaforms-core" },
+    { "path": "apps/api" },
+    { "path": "apps/worker" }
+  ]
+}

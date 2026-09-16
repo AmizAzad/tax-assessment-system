@@ -1,0 +1,114 @@
+# Local development stack.
+#
+# Plan reference: V2 section 25.2 Phase 0 exit criterion --
+# "A developer can clone, docker compose up, and hit a health endpoint
+# through the full stack."
+#
+# This file runs infrastructure only. The api, worker and web applications run
+# on the host via npm scripts so that they reload on change. Dockerfiles for
+# deploying them live alongside this file and are used by CI, not here.
+
+name: tax-assessment
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tas
+      POSTGRES_PASSWORD: tas_local_dev_only
+      POSTGRES_DB: tax_assessment
+      # Deterministic collation: sort order differences between environments
+      # have a habit of showing up as failing register-ordering tests.
+      POSTGRES_INITDB_ARGS: '--locale=C --encoding=UTF8'
+    ports:
+      # 5433 on the host, not 5432: a native PostgreSQL install is a common
+      # thing to already have, and silently shadowing it produces a very
+      # confusing "password authentication failed".
+      - '${DB_PORT:-5433}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tas -d tax_assessment']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: tas-redis
+    restart: unless-stopped
+    # Authorisation fails closed without Redis, so it is a production
+    # dependency rather than a cache of convenience (plan section 28 R18).
+    # Persistence is on locally so a restart does not silently empty it.
+    command: redis-server --appendonly yes
+    ports:
+      - '${REDIS_PORT:-6380}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: tas-keycloak
+    restart: unless-stopped
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/tax_assessment
+      KC_DB_SCHEMA: keycloak
+      KC_DB_USERNAME: tas
+      KC_DB_PASSWORD: tas_local_dev_only
+      KC_HEALTH_ENABLED: 'true'
+      KC_HTTP_PORT: '8081'
+    ports:
+      # 8085 on the host: 8081 is a common local Tomcat port, and a shadowed
+      # Keycloak surfaces as a baffling Tomcat 404 from the token endpoint.
+      - '${KEYCLOAK_PORT:-8085}:8081'
+    volumes:
+      - ./keycloak/realm-tax-assessment.json:/opt/keycloak/data/import/realm.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  minio:
+    image: minio/minio:latest
+    container_name: tas-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: tas
+      MINIO_ROOT_PASSWORD: tas_local_dev_only
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    # Captures outbound mail locally so notice service and notification
+    # dispatch can be exercised end to end without sending real e-mail.
+    image: axllent/mailpit:latest
+    container_name: tas-mailpit
+    restart: unless-stopped
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

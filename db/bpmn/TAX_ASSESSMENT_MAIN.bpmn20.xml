@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The assessment lifecycle as a process.
+
+  Plan reference: V2 sections 5.1 to 5.4, 8.2; ADR-002.
+
+  ## What this process is, and is not
+
+  It is the *coordination* of an assessment: who is asked to do what, in what
+  order, and what happens when nobody does it in time. It is **not** the
+  authority on case status. The case machine in `@tas/contracts` owns that, and
+  the API is the only thing that writes `status_code`.
+
+  That division is the whole of ADR-002. A process engine that also owned case
+  state would give two systems an opinion about whether an assessment is
+  approved, and they would eventually disagree. Here the engine raises work and
+  waits; the API decides and tells the engine what happened.
+
+  ## Why every user task carries roles, a step code and a form
+
+  The API validates a definition before it reaches the engine, and refuses one
+  that omits any of the three. A task with no candidate group is claimable by
+  anyone; a task with no step code cannot be correlated with the transition
+  table; a task with no form gives an officer nothing to do. Each of those
+  leaves a case quietly stranded rather than visibly broken, which is why the
+  check is a deployment gate rather than a convention.
+
+  ## Why the service tasks call apiInvoker and nothing else
+
+  The validator also rejects a service task naming a Java class or an arbitrary
+  expression. Every outbound call goes through the one delegate, which carries
+  an idempotency key derived from the process instance and activity, so a retry
+  cannot double-apply anything.
+
+  ## Literal fields and expression fields
+
+  A `flowable:string` is a literal. A field whose value contains `${...}` has
+  to be a `flowable:expression`, or the engine hands the delegate the text
+  verbatim. Getting this wrong produced a request to the literal URL
+  `/api/v1/cases/${caseId}/evidence/refresh` and a 500 from the HTTP client.
+
+  ## Error boundaries
+
+  `apiInvoker` raises `API_INVOCATION_FAILED` when the API refuses a call or
+  cannot be reached. Without a boundary event catching it the error escapes the
+  process, and because the first service task runs during start, a single
+  unreachable source took down case creation itself. The boundary routes it to
+  the task that exists to have a person resolve it.
+
+  ## Boundary timers
+
+  The objection window is a timer on the waiting task. It decides nothing: on
+  firing it calls the API, which applies its own rules. A timer that closed a
+  statutory window by itself would be a legal decision taken by a scheduler.
+-->
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://iris.com/taxassessment">
+
+  <error id="API_INVOCATION_FAILED" errorCode="API_INVOCATION_FAILED"
+         name="The API refused or could not be reached" />
+
+  <process id="TAX_ASSESSMENT_MAIN" name="Tax Assessment" isExecutable="true">
+
+    <documentation>
+      Coordinates an assessment from evidence retrieval to service of the
+      notice. The API owns case status; this process owns who is asked to act.
+    </documentation>
+
+    <startEvent id="start" name="Case opened" />
+    <sequenceFlow id="f1" sourceRef="start" targetRef="retrieveEvidence" />
+
+    <!-- Evidence is retrieved by the platform, not by a person: DATA_READY is
+         a statement that the data arrived, not a claim anybody makes. -->
+    <serviceTask id="retrieveEvidence" name="Retrieve evidence"
+                 flowable:delegateExpression="${apiInvoker}">
+      <extensionElements>
+        <flowable:field name="method">
+          <flowable:string>POST</flowable:string>
+        </flowable:field>
+        <flowable:field name="endpoint">
+          <flowable:expression>/api/v1/cases/${caseId}/evidence/refresh</flowable:expression>
+        </flowable:field>
+        <flowable:field name="outputVariable">
+          <flowable:string>evidence</flowable:string>
+        </flowable:field>
+      </extensionElements>
+    </serviceTask>
+    <sequenceFlow id="f2" sourceRef="retrieveEvidence" targetRef="evidenceGate" />
+
+    <boundaryEvent id="evidenceFailed" attachedToRef="retrieveEvidence" cancelActivity="true">
+      <errorEventDefinition errorRef="API_INVOCATION_FAILED" />
+    </boundaryEvent>
+    <sequenceFlow id="f2e" sourceRef="evidenceFailed" targetRef="chaseEvidence" />
+
+    <!-- A failed mandatory source must not be worked around by the process. -->
+    <exclusiveGateway id="evidenceGate" name="Data ready?" />
+    <sequenceFlow id="f3" sourceRef="evidenceGate" targetRef="chaseEvidence">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${evidence == null || evidence.dataReady != true}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="f4" sourceRef="evidenceGate" targetRef="prepareAssessment">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${evidence != null && evidence.dataReady == true}]]></conditionExpression>
+    </sequenceFlow>
+
+    <userTask id="chaseEvidence" name="Resolve an evidence failure"
+              flowable:candidateGroups="TA_SUPERVISOR,TA_ADMIN">
+      <documentation>
+        A mandatory source could not be read. Somebody has to fix the source or
+        decide to proceed without it; the process will not assume either.
+      </documentation>
+      <extensionElements>
+        <flowable:properties>
+          <flowable:property name="stepCode" value="EVIDENCE_EXCEPTION" />
+          <flowable:property name="formId" value="TA-EVIDENCE-EXCEPTION" />
+          <flowable:property name="roles" value="TA_SUPERVISOR,TA_ADMIN" />
+        </flowable:properties>
+      </extensionElements>
+    </userTask>
+    <sequenceFlow id="f5" sourceRef="chaseEvidence" targetRef="retrieveEvidence" />
+
+    <userTask id="prepareAssessment" name="Prepare the assessment"
+              flowable:candidateGroups="TA_ASSESSOR,TA_SPECIALIST">
+      <documentation>
+        Record adjustments and calculate. Completed by the officer when the
+        figures are ready to submit for review.
+      </documentation>
+      <extensionElements>
+        <flowable:properties>
+          <flowable:property name="stepCode" value="PREPARE" />
+          <flowable:property name="formId" value="TA-04-PREPARATION" />
+          <flowable:property name="roles" value="TA_ASSESSOR,TA_SPECIALIST" />
+        </flowable:properties>
+      </extensionElements>
+    </userTask>
+    <sequenceFlow id="f6" sourceRef="prepareAssessment" targetRef="review" />
+
+    <userTask id="review" name="Review the assessment"
+              flowable:candidateGroups="TA_REVIEWER">
+      <documentation>
+        The API enforces that the reviewer is not the officer who prepared the
+        case. This task only decides who is asked.
+      </documentation>
+      <extensionElements>
+        <flowable:properties>
+          <flowable:property name="stepCode" value="REVIEW" />
+          <flowable:property name="formId" value="TA-11-REVIEW" />
+          <flowable:property name="roles" value="TA_REVIEWER" />
+        </flowable:properties>
+      </extensionElements>
+    </userTask>
+    <sequenceFlow id="f7" sourceRef="review" targetRef="reviewGate" />
+
+    <exclusiveGateway id="reviewGate" name="Accepted?" />
+    <sequenceFlow id="f8" sourceRef="reviewGate" targetRef="prepareAssessment">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${reviewOutcome == 'RETURN'}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="f9" sourceRef="reviewGate" targetRef="approve">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${reviewOutcome != 'RETURN'}]]></conditionExpression>
+    </sequenceFlow>
+
+    <!--
+      One approval task for all three levels.
+
+      The delegation limits decide which level is required, and the API routes
+      accordingly. Three separate tasks here would put the limits in two places
+      and let them drift.
+    -->
+    <userTask id="approve" name="Approve the assessment"
+              flowable:candidateGroups="TA_APPROVER_L1,TA_APPROVER_L2,TA_APPROVER_L3">
+      <documentation>
+        The required approver level comes from the amount. The API refuses an
+        approval from a level the delegation limits do not permit.
+      </documentation>
+      <extensionElements>
+        <flowable:properties>
+          <flowable:property name="stepCode" value="APPROVE" />
+          <flowable:property name="formId" value="TA-12-APPROVAL" />
+          <flowable:property name="roles" value="TA_APPROVER_L1,TA_APPROVER_L2,TA_APPROVER_L3" />
+        </flowable:properties>
+      </extensionElements>
+    </userTask>
+    <sequenceFlow id="f10" sourceRef="approve" targetRef="approvalGate" />
+
+    <exclusiveGateway id="approvalGate" name="Approved?" />
+    <sequenceFlow id="f11" sourceRef="approvalGate" targetRef="prepareAssessment">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${approvalOutcome == 'REJECT'}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="f12" sourceRef="approvalGate" targetRef="issueNotice">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${approvalOutcome != 'REJECT'}]]></conditionExpression>
+    </sequenceFlow>
+
+    <userTask id="issueNotice" name="Issue and serve the notice"
+              flowable:candidateGroups="TA_NOTICE_ISSUER,TA_SUPERVISOR">
+      <documentation>
+        Generate the notice and serve it. Deemed service is computed by the API
+        from the jurisdiction rule; the objection window runs from that date,
+        not from despatch.
+      </documentation>
+      <extensionElements>
+        <flowable:properties>
+          <flowable:property name="stepCode" value="NOTICE" />
+          <flowable:property name="formId" value="TA-14-NOTICE" />
+          <flowable:property name="roles" value="TA_NOTICE_ISSUER,TA_SUPERVISOR" />
+        </flowable:properties>
+      </extensionElements>
+    </userTask>
+    <sequenceFlow id="f13" sourceRef="issueNotice" targetRef="awaitResponse" />
+
+    <!--
+      The objection window.
+
+      A receive task rather than a user task: nobody in the authority is doing
+      anything here. It ends when the taxpayer objects, or when the window
+      lapses and the boundary timer fires.
+    -->
+    <receiveTask id="awaitResponse" name="Objection window open" />
+    <sequenceFlow id="f14" sourceRef="awaitResponse" targetRef="objectionRaised" />
+
+    <boundaryEvent id="windowLapsed" attachedToRef="awaitResponse" cancelActivity="true">
+      <timerEventDefinition>
+        <!-- Set from the materialised objection deadline when the API reports
+             the notice served. A literal here would be a statutory date
+             hard-coded into a diagram. -->
+        <timeDate>${objectionWindowEndsAt}</timeDate>
+      </timerEventDefinition>
+    </boundaryEvent>
+    <sequenceFlow id="f15" sourceRef="windowLapsed" targetRef="closeWindow" />
+
+    <serviceTask id="closeWindow" name="Close the response window"
+                 flowable:delegateExpression="${apiInvoker}">
+      <extensionElements>
+        <flowable:field name="method">
+          <flowable:string>POST</flowable:string>
+        </flowable:field>
+        <flowable:field name="endpoint">
+          <flowable:expression>/api/v1/cases/${caseId}/transition</flowable:expression>
+        </flowable:field>
+        <flowable:field name="inputExpression">
+          <flowable:string>{"action":"WINDOW_LAPSED"}</flowable:string>
+        </flowable:field>
+      </extensionElements>
+    </serviceTask>
+    <sequenceFlow id="f16" sourceRef="closeWindow" targetRef="endUncontested" />
+
+    <endEvent id="endUncontested" name="Uncontested" />
+
+    <!--
+      A dispute leaves this process.
+
+      Objections and appeals have their own lifecycles, their own deadlines and
+      their own officers. Modelling them as a branch here would produce one
+      diagram nobody can read, which has to change whenever either lifecycle
+      does.
+    -->
+    <endEvent id="objectionRaised" name="Objection filed" />
+
+  </process>
+</definitions>

@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+plans/
+apps/bpmn-engine/target/
+apps/web/dist/
+apps/web/.angular/
+apps/web/out-tsc/
+
+# Angular templates: prettier collapses @if / @for control-flow blocks onto
+# shared lines, which makes the renderer template materially harder to read.
+# Angular has its own conventions; formatting is enforced by review here.
+apps/web/src/**/*.html

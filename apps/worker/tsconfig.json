@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "../api/src/**/*.ts"],
+  "exclude": ["../api/src/main.ts"],
+  "references": [
+    { "path": "../../packages/decimal" },
+    { "path": "../../packages/contracts" },
+    { "path": "../../packages/dynaforms-core" }
+  ]
+}

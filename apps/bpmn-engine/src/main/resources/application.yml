@@ -1,0 +1,56 @@
+server:
+  port: ${BPMN_PORT:8080}
+
+spring:
+  application:
+    name: tas-bpmn-engine
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:tax_assessment}?currentSchema=flowable
+    username: ${DB_USER:tas}
+    password: ${DB_PASSWORD:tas_local_dev_only}
+    driver-class-name: org.postgresql.Driver
+
+flowable:
+  database-schema-update: true
+  database-schema: flowable
+  # The async executor drives timers. Statutory deadlines depend on it, so it
+  # is never disabled outside tests.
+  async-executor-activate: true
+  history-level: full
+  # Process definitions are deployed through the API, not from the classpath:
+  # a definition must be validated before it reaches the engine (see the
+  # publish-time role check in the API's workflow module).
+  check-process-definitions: false
+
+tas:
+  api:
+    base-url: ${API_BASE_URL:http://localhost:3000}
+    # Retained only for test harnesses that inject a token directly. A real
+    # deployment authenticates through the service account below.
+    service-token: ${BPMN_SERVICE_TOKEN:}
+  auth:
+    # The engine authenticates as itself, holding one role that is granted
+    # exactly the routes the shipped process definition calls.
+    token-url: ${OIDC_TOKEN_URL:http://localhost:8085/realms/tax-assessment/protocol/openid-connect/token}
+    client-id: ${OIDC_CLIENT_ID:tas-bpmn}
+    client-secret: ${OIDC_CLIENT_SECRET:}
+  webhook:
+    # Where lifecycle events are delivered. The API keeps a read model from
+    # these; the engine's own tables stay the engine's business.
+    url: ${WEBHOOK_URL:http://localhost:3000/api/v1/workflow/events}
+    enabled: ${WEBHOOK_ENABLED:true}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    com.iris.taxassessment: INFO
+    org.flowable: WARN

@@ -1,0 +1,12 @@
+{
+  "name": "@tas/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared DTOs, enums, status codes and the case state machine",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "jest"
+  }
+}

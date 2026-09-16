@@ -1,0 +1,19 @@
+{
+  "name": "@tas/decimal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Exact decimal money type for tax computation. See docs/adr/ADR-007-money-representation.md",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "dependencies": {
+    "decimal.js": "^10.4.3"
+  },
+  "devDependencies": {
+    "fast-check": "^3.23.2"
+  }
+}

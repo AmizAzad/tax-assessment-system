@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  verify:
+    name: Format, lint, typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - name: Lint
+        # Includes the two architectural controls: module boundaries
+        # (plan section 14.2) and the ban on monetary arithmetic (ADR-007).
+        run: npm run lint
+      - run: npm run typecheck
+
+  test:
+    name: Unit and integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tas
+          POSTGRES_PASSWORD: tas_ci
+          POSTGRES_DB: tax_assessment
+        options: >-
+          --health-cmd "pg_isready -U tas -d tax_assessment"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+        ports:
+          - 6379:6379
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: tas
+      DB_PASSWORD: tas_ci
+      DB_NAME: tax_assessment
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Create schemas
+        run: |
+          PGPASSWORD=tas_ci psql -h localhost -U tas -d tax_assessment \
+            -f deploy/docker/init-db.sql
+
+      - name: Run migrations
+        run: npm run db:migrate
+
+      - name: Verify migrations are reversible
+        # A migration that cannot be undone is a migration that cannot be
+        # rolled back in production. Catch it here, not at 2am.
+        run: |
+          npm run db:migrate:undo
+          npm run db:migrate
+
+      - name: Test
+        run: npm test
+
+      - name: Money package coverage gate
+        # 100% across all four metrics. Enforced by the Jest threshold in
+        # packages/decimal/jest.config.js; this step surfaces it as its own
+        # red X rather than burying it in the suite output.
+        run: npm run test --workspace @tas/decimal -- --coverage
+
+  security:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Audit
+        # A high-severity advisory blocks the build (plan section 20).
+        run: npm audit --audit-level=high

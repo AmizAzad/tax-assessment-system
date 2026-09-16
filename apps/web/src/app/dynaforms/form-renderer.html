@@ -1,0 +1,243 @@
+<!--
+  The form renderer template.
+
+  One recursive block walks the element tree. Adding a widget type means a new
+  branch in the @switch below and nothing else — no per-form markup anywhere in
+  the application (plan 18.2).
+-->
+<form class="tas-form" (ngSubmit)="$event.preventDefault()">
+  @for (element of rootElements(); track element.uuid) {
+    <ng-container [ngTemplateOutlet]="node" [ngTemplateOutletContext]="{ $implicit: element }" />
+  }
+
+  @if (actions().length > 0 && !readOnly()) {
+    <div class="tas-form__actions">
+      @for (action of actions(); track action.code) {
+        <button
+          type="button"
+          class="tas-btn"
+          [class.tas-btn--primary]="action.code !== 'SAVE_DRAFT'"
+          (click)="submit(action.code)"
+        >{{ action.label }}</button>
+      }
+    </div>
+  }
+
+  @if (errors().length > 0) {
+    <div class="tas-form__summary" role="alert">
+      <strong>{{ errors().length }} problem(s) to fix</strong>
+      <ul>
+        @for (error of errors(); track error.jsonKey + error.rule) {
+          <li>{{ error.jsonKey }} — {{ error.rule }}</li>
+        }
+      </ul>
+    </div>
+  }
+</form>
+
+
+<!-- Recursive node renderer. -->
+<ng-template #node let-element>
+  @if (isVisible(element)) {
+
+    @if (isContainer(element)) {
+      <fieldset class="tas-section">
+        @if (element.displayKey) {
+          <legend>{{ labelFor(element) }}</legend>
+        }
+        @for (child of element.children ?? []; track child.uuid) {
+          <ng-container [ngTemplateOutlet]="node" [ngTemplateOutletContext]="{ $implicit: child }" />
+        }
+      </fieldset>
+    }
+
+    @else if (element.fieldType === FieldType.HEADER) {
+      <h3 class="tas-header">{{ labelFor(element) }}</h3>
+    }
+
+    @else if (element.fieldType === FieldType.DIVIDER) {
+      <hr class="tas-divider" />
+    }
+
+    @else if (element.fieldType === FieldType.BANNER) {
+      <p class="tas-banner">{{ labelFor(element) }}</p>
+    }
+
+    @else if (element.fieldType !== FieldType.BUTTON) {
+      <div class="tas-field" [class.tas-field--invalid]="errorsFor(element).length > 0">
+
+        <label class="tas-field__label" [attr.for]="element.uuid">
+          {{ labelFor(element) }}
+
+          @if (isRequired(element)) {
+            <span class="tas-field__required" aria-hidden="true">*</span>
+          }
+
+          <!--
+            Server-owned fields are labelled, not merely disabled. An officer
+            seeing a greyed box should know why: the figure is the server's,
+            not theirs to type (ADR-006).
+          -->
+          @if (element.source === 'server') {
+            <span class="tas-field__badge">computed</span>
+          }
+        </label>
+
+        @switch (element.fieldType) {
+
+          @case (FieldType.TEXTAREA) {
+            <textarea
+              class="tas-input"
+              rows="4"
+              [id]="element.uuid"
+              [disabled]="isDisabled(element)"
+              [value]="valueOf(element)"
+              (input)="onInput(element, $event)"
+            ></textarea>
+          }
+
+          @case (FieldType.CHECKBOX) {
+            <input
+              type="checkbox"
+              [id]="element.uuid"
+              [disabled]="isDisabled(element)"
+              [checked]="valueOf(element) === true"
+              (change)="onCheckboxChange(element, $event)"
+            />
+          }
+
+          @case (FieldType.TOGGLESWITCH) {
+            <input
+              type="checkbox"
+              class="tas-toggle"
+              [id]="element.uuid"
+              [disabled]="isDisabled(element)"
+              [checked]="valueOf(element) === true"
+              (change)="onCheckboxChange(element, $event)"
+            />
+          }
+
+          @case (FieldType.NUMBER) {
+            <!-- type=text, not number: a spinner encourages nudging a tax figure. -->
+            <input
+              type="text"
+              inputmode="decimal"
+              class="tas-input tas-input--numeric"
+              [id]="element.uuid"
+              [disabled]="isDisabled(element)"
+              [value]="valueOf(element)"
+              (input)="onNumberInput(element, $event)"
+            />
+            @if (element.currency) {
+              <span class="tas-field__suffix">{{ element.currency }}</span>
+            }
+          }
+
+          @case (FieldType.DATEPICKER) {
+            <input
+              type="date"
+              class="tas-input"
+              [id]="element.uuid"
+              [disabled]="isDisabled(element)"
+              [value]="valueOf(element)"
+              (input)="onInput(element, $event)"
+            />
+          }
+
+          @case (FieldType.DROPDOWN) {
+            <select
+              class="tas-input"
+              [id]="element.uuid"
+              [disabled]="isDisabled(element)"
+              [value]="valueOf(element)"
+              (change)="onInput(element, $event)"
+            >
+              <option value="">—</option>
+              @for (option of optionsFor(element); track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+          }
+
+          @case (FieldType.RADIOGROUP) {
+            <div class="tas-radiogroup">
+              @for (option of optionsFor(element); track option.value) {
+                <label class="tas-radio">
+                  <input
+                    type="radio"
+                    [name]="element.jsonKey"
+                    [value]="option.value"
+                    [disabled]="isDisabled(element)"
+                    [checked]="valueOf(element) === option.value"
+                    (change)="onValueChange(element, option.value)"
+                  />
+                  {{ option.label }}
+                </label>
+              }
+            </div>
+          }
+
+          @case (FieldType.MULTISELECT) {
+            <select
+              class="tas-input"
+              multiple
+              [id]="element.uuid"
+              [disabled]="isDisabled(element)"
+              (change)="onMultiSelectChange(element, $event)"
+            >
+              @for (option of optionsFor(element); track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+          }
+
+          @case (FieldType.FORMULA) {
+            <!--
+              Indicative only. The legal figure is computed server-side in
+              exact decimal with a stored trace (ADR-006, ADR-007). Rendered as
+              <output> so it is never an editable control.
+            -->
+            <output class="tas-input tas-input--computed" [id]="element.uuid">
+              {{ formulaValue(element) }}
+            </output>
+          }
+
+          @case (FieldType.EMAIL) {
+            <input
+              type="email"
+              class="tas-input"
+              [id]="element.uuid"
+              [disabled]="isDisabled(element)"
+              [value]="valueOf(element)"
+              (input)="onInput(element, $event)"
+            />
+          }
+
+          @case (FieldType.FILE) {
+            <input
+              type="file"
+              class="tas-input"
+              [id]="element.uuid"
+              [disabled]="isDisabled(element)"
+            />
+          }
+
+          @default {
+            <input
+              type="text"
+              class="tas-input"
+              [id]="element.uuid"
+              [disabled]="isDisabled(element)"
+              [value]="valueOf(element)"
+              (input)="onInput(element, $event)"
+            />
+          }
+        }
+
+        @for (error of errorsFor(element); track error.rule) {
+          <p class="tas-field__error">{{ error.errorKey }}</p>
+        }
+      </div>
+    }
+  }
+</ng-template>

@@ -1,0 +1,189 @@
+<div class="tas-builder">
+
+  <header class="tas-builder__bar">
+    <div class="tas-builder__meta">
+      <label>
+        <span>Code</span>
+        <input
+          type="text"
+          class="tas-input"
+          [value]="state.templateCode()"
+          (change)="onMetaChange('templateCode', $event)"
+        />
+      </label>
+      <label>
+        <span>Name</span>
+        <input
+          type="text"
+          class="tas-input"
+          [value]="state.displayKey()"
+          (change)="onMetaChange('displayKey', $event)"
+        />
+      </label>
+      <label>
+        <span>Year</span>
+        <input
+          type="text"
+          class="tas-input tas-input--narrow"
+          placeholder="2026"
+          [value]="state.appliesToYear()"
+          (change)="onMetaChange('appliesToYear', $event)"
+        />
+      </label>
+    </div>
+
+    <div class="tas-builder__actions">
+      <span class="tas-muted">{{ fieldCount() }} field(s)</span>
+
+      <button type="button" class="tas-btn" [disabled]="!state.canUndo()" (click)="state.undo()">
+        Undo
+      </button>
+
+      <button type="button" class="tas-btn" (click)="togglePreview()">
+        {{ previewMode() === 'edit' ? 'Preview' : 'Back to editing' }}
+      </button>
+
+      @if (canAuthor()) {
+        <button
+          type="button"
+          class="tas-btn"
+          [disabled]="saving() || state.hasErrors()"
+          (click)="saveAndPublish(false)"
+        >Save draft</button>
+
+        <button
+          type="button"
+          class="tas-btn tas-btn--primary"
+          [disabled]="saving() || state.hasErrors()"
+          (click)="saveAndPublish(true)"
+        >{{ saving() ? 'Saving…' : 'Publish' }}</button>
+      }
+    </div>
+  </header>
+
+  @if (!canAuthor()) {
+    <div class="tas-alert" role="status">
+      You can build and preview a form here, but only <code>TA_ADMIN</code> may save or publish
+      one. Sign in as <code>admin-tax</code> to do that.
+    </div>
+  }
+
+  @if (saveError(); as message) {
+    <div class="tas-alert tas-alert--danger" role="alert">{{ message }}</div>
+  }
+
+  @if (saved(); as template) {
+    <div class="tas-alert tas-alert--success" role="status">
+      Saved <code>{{ template.templateCode }}</code> v{{ template.version }} as
+      <strong>{{ template.status }}</strong>.
+      @if (template.status === 'PUBLISHED') {
+        A published template is immutable — further changes go to a new version.
+      }
+    </div>
+  }
+
+  @if (state.problems().length > 0) {
+    <div
+      class="tas-alert"
+      [class.tas-alert--danger]="state.hasErrors()"
+      role="status"
+    >
+      <strong>{{ state.hasErrors() ? 'Problems to fix' : 'Suggestions' }}</strong>
+      <ul>
+        @for (problem of state.problems(); track problem.message) {
+          <li>
+            <span class="tas-badge" [class.tas-badge--error]="problem.severity === 'error'">
+              {{ problem.severity }}
+            </span>
+            {{ problem.message }}
+          </li>
+        }
+      </ul>
+    </div>
+  }
+
+  @if (previewMode() === 'preview') {
+    <div class="tas-card">
+      <p class="tas-muted">
+        This is the real renderer, running the same dependency and validation engines the server
+        runs. What you see here is what an officer sees.
+      </p>
+      <tas-form-renderer [definition]="state.definition()" [roleCodes]="roleCodes()" />
+    </div>
+  } @else {
+
+    <div class="tas-builder__panes">
+
+      <!-- Palette -->
+      <aside class="tas-builder__palette">
+        <h3>Add a field</h3>
+        @for (group of paletteGroups(); track group.name) {
+          <div class="tas-palette__group">
+            <h4>{{ group.name }}</h4>
+            @for (entry of group.entries; track entry.fieldType) {
+              <button type="button" class="tas-palette__item" (click)="add(entry.fieldType)">
+                {{ entry.label }}
+              </button>
+            }
+          </div>
+        }
+        <p class="tas-muted tas-palette__hint">
+          A new field is added inside the selected section, or at the end of the form.
+        </p>
+      </aside>
+
+      <!-- Structure -->
+      <section class="tas-builder__tree">
+        <h3>Structure</h3>
+
+        @if (flatTree().length === 0) {
+          <p class="tas-muted">
+            Empty. Start with a <strong>Section</strong>, then add fields inside it.
+          </p>
+        }
+
+        @for (row of flatTree(); track row.element.uuid) {
+          <div
+            class="tas-tree__row"
+            [class.is-selected]="state.selectedUuid() === row.element.uuid"
+            [style.padding-inline-start.rem]="0.5 + row.depth * 1.1"
+            (click)="state.select(row.element.uuid)"
+          >
+            <span class="tas-tree__label">
+              {{ labelFor(row.element) }}
+              <code>{{ row.element.jsonKey }}</code>
+            </span>
+
+            <span class="tas-tree__type">{{ typeNameOf(row.element) }}</span>
+
+            <span class="tas-tree__controls">
+              <button
+                type="button"
+                class="tas-btn tas-btn--icon"
+                title="Move up"
+                (click)="state.move(row.element.uuid, -1); $event.stopPropagation()"
+              >↑</button>
+              <button
+                type="button"
+                class="tas-btn tas-btn--icon"
+                title="Move down"
+                (click)="state.move(row.element.uuid, 1); $event.stopPropagation()"
+              >↓</button>
+              <button
+                type="button"
+                class="tas-btn tas-btn--icon"
+                title="Remove"
+                (click)="state.remove(row.element.uuid); $event.stopPropagation()"
+              >×</button>
+            </span>
+          </div>
+        }
+      </section>
+
+      <!-- Properties -->
+      <aside class="tas-builder__properties">
+        <tas-element-properties />
+      </aside>
+    </div>
+  }
+</div>

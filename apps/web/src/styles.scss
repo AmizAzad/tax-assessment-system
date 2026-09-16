@@ -1,0 +1,461 @@
+/* Global styles and design tokens.
+ *
+ * Tokens rather than literal colours so a deployment can rebrand without
+ * touching components, and so dark mode is a token swap.
+ *
+ * Logical properties everywhere (inline-start, not left): RTL is a Phase 1
+ * requirement, and retrofitting it costs far more than carrying it
+ * (plan 18.3). */
+
+:root {
+  --tas-bg: #f6f7f9;
+  --tas-surface: #ffffff;
+  --tas-surface-muted: #f0f2f5;
+  --tas-border: #d5d9e0;
+  --tas-text: #1c2430;
+  --tas-text-strong: #0f1721;
+  --tas-text-muted: #66707d;
+  --tas-primary: #1f4e79;
+  /* Darker, not brighter: a hover that lightens a dark button drifts towards
+     the page background, which is how the old rule made it vanish. */
+  --tas-primary-hover: #163a5a;
+  --tas-primary-contrast: #ffffff;
+  --tas-danger: #b3261e;
+  --tas-danger-bg: #fdf2f1;
+  --tas-info: #1f6feb;
+  --tas-info-bg: #eef4fd;
+  --tas-success: #1a7f4b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--tas-bg);
+  color: var(--tas-text);
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* Buttons.
+ *
+ * Every variant sets its **own** hover background explicitly, and none of them
+ * rely on `filter`.
+ *
+ * This used to be one shared hover rule plus a modifier, and the modifier lost:
+ * `.tas-btn:hover:not(:disabled)` is three selectors of specificity and
+ * `.tas-btn--primary` is one, so hovering a primary button replaced its dark
+ * background with the light one while its text stayed white. The button
+ * disappeared under the cursor.
+ *
+ * The rule that follows from that: a variant that changes `background` and
+ * `color` together must change both again on hover, or state its hover at the
+ * same specificity as the base. Never leave half a pair to be inherited. */
+.tas-btn {
+  font: inherit;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--tas-border);
+  border-radius: 4px;
+  background: var(--tas-surface);
+  color: var(--tas-text);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--tas-surface-muted);
+    border-color: var(--tas-text-muted);
+    color: var(--tas-text-strong);
+  }
+
+  &:active:not(:disabled) {
+    background: var(--tas-border);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &--primary {
+    background: var(--tas-primary);
+    border-color: var(--tas-primary);
+    color: var(--tas-primary-contrast);
+
+    &:hover:not(:disabled) {
+      background: var(--tas-primary-hover);
+      border-color: var(--tas-primary-hover);
+      color: var(--tas-primary-contrast);
+    }
+
+    &:active:not(:disabled) {
+      background: var(--tas-primary-hover);
+    }
+  }
+
+  &--danger {
+    background: var(--tas-surface);
+    border-color: var(--tas-danger);
+    color: var(--tas-danger);
+
+    &:hover:not(:disabled) {
+      background: var(--tas-danger);
+      border-color: var(--tas-danger);
+      color: var(--tas-primary-contrast);
+    }
+  }
+}
+
+.tas-card {
+  background: var(--tas-surface);
+  border: 1px solid var(--tas-border);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+}
+
+.tas-alert {
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--tas-border);
+  background: var(--tas-surface);
+
+  p {
+    margin: 0.5rem 0 0;
+  }
+
+  &--danger {
+    border-color: var(--tas-danger);
+    background: var(--tas-danger-bg);
+  }
+
+  &__hint {
+    font-size: 0.85rem;
+    color: var(--tas-text-muted);
+  }
+}
+
+.tas-muted {
+  color: var(--tas-text-muted);
+}
+
+.tas-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+
+  th,
+  td {
+    text-align: start;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--tas-border);
+  }
+
+  th {
+    font-weight: 600;
+    color: var(--tas-text-muted);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+}
+
+code {
+  background: var(--tas-surface-muted);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+/* ------------------------------------------------------------------ domain UI
+ *
+ * Added for the assessment screens. Everything below is still tokens and
+ * logical properties: `inline-start`, never `left`, so the Arabic and Hebrew
+ * layouts mirror without a second stylesheet (plan 18.3).
+ */
+
+.tas-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-block-end: 1rem;
+
+  h1 {
+    margin: 0;
+  }
+}
+
+.tas-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.tas-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.tas-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+/* A status is read at a glance across a register of hundreds of rows, so the
+ * colour carries meaning: settled things are green, refused things are red,
+ * anything waiting on somebody is amber. */
+.tas-badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--tas-border);
+  background: var(--tas-surface-muted);
+  color: var(--tas-text-muted);
+  white-space: nowrap;
+
+  &--active {
+    background: var(--tas-info-bg);
+    border-color: var(--tas-info);
+    color: var(--tas-info);
+  }
+
+  &--waiting {
+    background: #fff7e6;
+    border-color: #b7791f;
+    color: #8a5a08;
+  }
+
+  &--done {
+    background: #eaf7f0;
+    border-color: var(--tas-success);
+    color: var(--tas-success);
+  }
+
+  &--stopped {
+    background: var(--tas-danger-bg);
+    border-color: var(--tas-danger);
+    color: var(--tas-danger);
+  }
+}
+
+/* Amounts are tabular so columns of figures line up at the decimal point. A
+ * register where 9,000 looks wider than 10,000 is hard to scan. */
+.tas-amount {
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.tas-amount--negative {
+  color: var(--tas-danger);
+}
+
+.tas-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-block-end: 2px solid var(--tas-border);
+  margin-block-end: 1.25rem;
+
+  button {
+    appearance: none;
+    border: none;
+    background: none;
+    padding: 0.6rem 1rem;
+    font: inherit;
+    font-size: 0.9rem;
+    color: var(--tas-text-muted);
+    cursor: pointer;
+    border-block-end: 2px solid transparent;
+    margin-block-end: -2px;
+
+    &:hover {
+      color: var(--tas-text);
+    }
+
+    &[aria-selected='true'] {
+      color: var(--tas-primary);
+      border-block-end-color: var(--tas-primary);
+      font-weight: 600;
+    }
+  }
+}
+
+.tas-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem 1.5rem;
+
+  dt {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--tas-text-muted);
+    margin: 0;
+  }
+
+  dd {
+    margin: 0.15rem 0 0;
+    font-weight: 500;
+  }
+}
+
+.tas-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+
+  label {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--tas-text-muted);
+  }
+
+  input,
+  select,
+  textarea {
+    font: inherit;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--tas-border);
+    border-radius: 4px;
+    background: var(--tas-surface);
+    color: var(--tas-text);
+  }
+
+  textarea {
+    min-height: 5rem;
+    resize: vertical;
+  }
+
+  &__hint {
+    font-size: 0.78rem;
+    color: var(--tas-text-muted);
+  }
+}
+
+/* The calculation trace. Monospaced because every line is arithmetic a
+ * reviewer is expected to check by hand. */
+.tas-trace {
+  font-family: 'Cascadia Mono', Consolas, 'Courier New', monospace;
+  font-size: 0.82rem;
+
+  td {
+    vertical-align: top;
+  }
+
+  &__step {
+    color: var(--tas-text-muted);
+    white-space: nowrap;
+  }
+}
+
+.tas-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--tas-text-muted);
+  border: 1px dashed var(--tas-border);
+  border-radius: 8px;
+}
+
+.tas-bar {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--tas-surface-muted);
+  overflow: hidden;
+
+  span {
+    display: block;
+    height: 100%;
+    background: var(--tas-primary);
+  }
+
+  &--warn span {
+    background: #b7791f;
+  }
+
+  &--over span {
+    background: var(--tas-danger);
+  }
+}
+
+/* ---------------------------------------------------------------- access
+ *
+ * Plan reference: V2 section 18.3 ("WCAG 2.1 AA; keyboard navigation through
+ * the whole assessment flow").
+ *
+ * These are the two failures that affect every screen at once, so they belong
+ * in the global sheet rather than in components.
+ *
+ * **Focus visibility** (WCAG 2.4.7). Without an explicit style, a keyboard
+ * user tabbing through the workbench cannot see where they are — the browser
+ * default is thin, low-contrast, and easily lost against a card. An officer
+ * who cannot see the focus ring cannot work the queue by keyboard, which is
+ * how somebody working two hundred cases a week actually works.
+ *
+ * `:focus-visible` rather than `:focus`, so a mouse click does not leave a
+ * ring behind on every button.
+ */
+:focus-visible {
+  outline: 3px solid var(--tas-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* A skip link (WCAG 2.4.1). Hidden until focused, then the first thing a
+ * keyboard user reaches — otherwise every screen starts with the whole
+ * navigation bar again. */
+.tas-skip {
+  position: absolute;
+  inset-inline-start: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 0.6rem 1rem;
+  background: var(--tas-primary);
+  color: var(--tas-primary-contrast);
+  border-end-end-radius: 6px;
+
+  &:focus {
+    inset-inline-start: 0;
+  }
+}
+
+/* Text for a screen reader only. Used where a visual cue carries meaning that
+ * the markup alone does not, such as the sort direction on a register. */
+.tas-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Honour a request for less motion. Nothing here animates much, but the chart
+ * library does, and a vestibular trigger is not a preference to ignore. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

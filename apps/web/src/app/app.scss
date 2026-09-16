@@ -1,0 +1,92 @@
+.tas-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    padding: 0.75rem 1.5rem;
+    background: var(--tas-surface);
+    border-bottom: 1px solid var(--tas-border);
+  }
+
+  &__brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-weight: 600;
+    color: var(--tas-text-strong);
+  }
+
+  &__mark {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    background: var(--tas-primary);
+    color: var(--tas-primary-contrast);
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  &__nav {
+    display: flex;
+    gap: 0.25rem;
+    flex: 1;
+
+    a {
+      padding: 0.4rem 0.8rem;
+      border-radius: 4px;
+      text-decoration: none;
+      color: var(--tas-text-muted);
+
+      &:hover {
+        background: var(--tas-surface-muted);
+      }
+
+      &.is-active {
+        background: var(--tas-surface-muted);
+        color: var(--tas-text-strong);
+        font-weight: 600;
+      }
+    }
+  }
+
+  &__user {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  &__whoami {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+    font-size: 0.85rem;
+
+    small {
+      color: var(--tas-text-muted);
+      font-size: 0.72rem;
+    }
+  }
+
+  &__lang {
+    font: inherit;
+    font-size: 0.85rem;
+    padding: 0.3rem 0.4rem;
+    border: 1px solid var(--tas-border);
+    border-radius: 4px;
+    background: var(--tas-surface);
+  }
+
+  &__main {
+    flex: 1;
+    padding: 1.5rem;
+    max-width: 1200px;
+    width: 100%;
+    margin-inline: auto;
+  }
+}

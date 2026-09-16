@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://tax-assessment/test">
+
+  <process id="apiInvokerTest" name="apiInvoker test" isExecutable="true">
+    <startEvent id="start"/>
+    <sequenceFlow id="f1" sourceRef="start" targetRef="callApi"/>
+
+    <serviceTask id="callApi" name="Call the API" flowable:delegateExpression="${apiInvoker}">
+      <extensionElements>
+        <flowable:field name="endpoint">
+          <flowable:string><![CDATA[/api/v1/test]]></flowable:string>
+        </flowable:field>
+        <flowable:field name="method">
+          <flowable:string>POST</flowable:string>
+        </flowable:field>
+        <flowable:field name="outputVariable">
+          <flowable:string>apiResult</flowable:string>
+        </flowable:field>
+      </extensionElements>
+    </serviceTask>
+
+    <sequenceFlow id="f2" sourceRef="callApi" targetRef="end"/>
+    <endEvent id="end"/>
+  </process>
+</definitions>
