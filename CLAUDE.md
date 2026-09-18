@@ -8,7 +8,8 @@ This file is the contract for agents working here. The invariants below are arch
 
 | Task | Command |
 | --- | --- |
-| Full gate (run before any commit) | `npm run verify` — format:check, lint, typecheck, test |
+| Full gate (run before any commit) | `npm run verify` — format:check, lint, guards, guard self-test, typecheck, test |
+| Architectural guards | `npm run guards` / `npm run guards:self-test` (`scripts/verify/guards.js`) |
 | Typecheck only | `npm run typecheck` (project references, `tsc --build`) |
 | Lint / autofix | `npm run lint` / `npm run lint:fix` |
 | Unit + integration tests | `npm test` (all workspaces) |
@@ -81,9 +82,27 @@ Commit your own work — do not leave changes uncommitted for the user to stage.
 - Opening a PR is still a separate, explicit ask.
 - Rule-set and golden-fixture changes get their own commit, with the intended liability diff stated in the body.
 
+## Prose and comments
+
+The written surfaces are held to the same standard as the code, because a
+wrong explanation outlives the commit that introduced it.
+
+- **Comments explain why, never what.** The existing comments in this
+  repository — `.eslintrc.js`, the append-only migration, `auth.setup.ts` —
+  are the standard: each one records a decision and the alternative it
+  rejected. A comment that restates the line below it gets deleted, not
+  reworded. Run `/no-comments` over a diff before review.
+- **No commented-out code, no `TODO` without an owner and a reason.** Git holds
+  the old version.
+- **Prose surfaces** — PR descriptions, ADRs, `README.md`, this file — go
+  through `/unslop`, and an ADR through `/technical-writing`. An ADR that does
+  not say what it rejected is not a decision record.
+- **State what was verified and what was not.** "Tests pass" when only the
+  typecheck ran is the one failure that makes every other report worthless.
+
 ## Conventions
 
 - Migrations are append-only and timestamp-named (`YYYYMMDDHHMMSS-description.js`). Never edit a migration that has run; add a new one.
 - `docs/adr/` is where decisions live. Contradicting an ADR means writing a new ADR, not a code comment.
-- Reference docs before re-deriving: `docs/architecture.md`, `docs/running-locally.md`, `docs/testing.md`, `docs/development.md`, `plans/V2_tax_assessment_greenfield_plan_11092026.md`.
+- Reference docs before re-deriving: `docs/architecture.md`, `docs/running-locally.md`, `docs/testing.md`, `docs/development.md`, `docs/working-with-agents.md`, `plans/V2_tax_assessment_greenfield_plan_11092026.md`.
 - `.env` is local-only and gitignored; `.env.example` is the tracked shape.
