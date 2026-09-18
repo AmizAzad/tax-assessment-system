@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { CaseStatus, RoleCode } from '@tas/contracts';
+import { RoleCode, statusesWithAction } from '@tas/contracts';
 import { Money } from '@tas/decimal';
 import { QueryTypes, Sequelize } from 'sequelize';
 import { SEQUELIZE } from '../../infrastructure/tokens';
@@ -55,6 +55,15 @@ export class SettlementService {
    */
   private static readonly TOLERANCE = '1.00';
 
+  /**
+   * The statuses PAYMENT_SETTLED is legal from, read off the transition table.
+   *
+   * An upheld appeal is as payable as a served notice, and the table says so.
+   * Naming AWAITING_TAXPAYER_RESPONSE here instead meant a taxpayer who lost an
+   * appeal and then paid stayed in APPEAL_UPHELD with no way out.
+   */
+  private static readonly SETTLEABLE = statusesWithAction('PAYMENT_SETTLED');
+
   constructor(
     @Inject(SEQUELIZE) private readonly sequelize: Sequelize,
     private readonly cases: CaseService,
@@ -79,7 +88,7 @@ export class SettlementService {
         WHERE taxpayer_id = :taxpayerId
           AND tax_type_code = :taxTypeCode
           AND assessment_year = :assessmentYear
-          AND status_code = :awaiting
+          AND status_code IN (:settleable)
           AND is_active`,
       {
         type: QueryTypes.SELECT,
@@ -87,7 +96,7 @@ export class SettlementService {
           taxpayerId,
           taxTypeCode,
           assessmentYear,
-          awaiting: CaseStatus.AWAITING_TAXPAYER_RESPONSE,
+          settleable: [...SettlementService.SETTLEABLE],
         },
       },
     );
@@ -156,7 +165,7 @@ export class SettlementService {
     };
 
     if (!settled) return outcome;
-    if (assessmentCase.statusCode !== CaseStatus.AWAITING_TAXPAYER_RESPONSE) return outcome;
+    if (!SettlementService.SETTLEABLE.includes(assessmentCase.statusCode)) return outcome;
 
     // SYSTEM, because the platform is reporting that money arrived, not
     // recording anybody's opinion that it did.
