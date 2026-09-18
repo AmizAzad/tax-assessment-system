@@ -42,7 +42,10 @@
     "web:build": "npm run build --workspace @tas/web",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "e2e:cycle": "playwright test apps/web/e2e/07-full-cycle.spec.ts --reporter=list",
+    "e2e:workflow-pdf": "node scripts/e2e-report/build-report.js",
+    "e2e:workflow": "npm run e2e:cycle && npm run e2e:workflow-pdf"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
