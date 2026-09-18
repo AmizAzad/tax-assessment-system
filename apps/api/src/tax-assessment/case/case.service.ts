@@ -142,13 +142,23 @@ export class CaseService {
 
     const opened = await this.sequelize.transaction(async (transaction) => {
       const rows = await this.sequelize.query<Record<string, unknown>>(
+        // `ux_case_scope_version` covers the scope plus the version for every
+        // status but CANCELLED, so a second case for a period freed by closure
+        // collides unless it is numbered above the case it follows. Derived in
+        // the statement rather than read first, because two officers reading
+        // the same maximum would both insert the same version.
         `INSERT INTO tax.tax_assessment_case
                 (case_number, taxpayer_id, tin, taxpayer_name, tax_type_code,
                  jurisdiction_code, assessment_year, assessment_type, trigger_path,
-                 status_code, currency_code, limitation_date, created_by)
+                 status_code, currency_code, limitation_date, created_by, version)
          VALUES (:caseNumber, :taxpayerId, :tin, :taxpayerName, :taxTypeCode,
                  :jurisdiction, :assessmentYear, :assessmentType, :triggerPath,
-                 :status, :currency, :limitationDate, :userId)
+                 :status, :currency, :limitationDate, :userId,
+                 (SELECT COALESCE(MAX(version), 0) + 1
+                    FROM tax.tax_assessment_case
+                   WHERE taxpayer_id = :taxpayerId
+                     AND tax_type_code = :taxTypeCode
+                     AND assessment_year = :assessmentYear))
          RETURNING *`,
         {
           type: QueryTypes.SELECT,

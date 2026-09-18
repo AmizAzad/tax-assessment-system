@@ -11,6 +11,7 @@ import {
   findTransition,
   isTransitionPermitted,
   reachableStatuses,
+  statusesWithAction,
 } from '../src';
 
 describe('case state machine structure', () => {
@@ -135,6 +136,13 @@ describe('transition lookup', () => {
   it('lists no actions for a terminal status', () => {
     expect(availableActions(CaseStatus.CLOSED)).toEqual([]);
   });
+
+  it('lists every status a settling payment can be recorded against', () => {
+    expect([...statusesWithAction('PAYMENT_SETTLED')].sort()).toEqual([
+      'APPEAL_UPHELD',
+      'AWAITING_TAXPAYER_RESPONSE',
+    ]);
+  });
 });
 
 describe('assertTransition', () => {
@@ -182,6 +190,20 @@ describe('assertTransition', () => {
     expect(() =>
       assertTransition(CaseStatus.INITIATED, ActionCode.APPROVE, [RoleCode.ADMIN]),
     ).toThrow(/RETRIEVE_DATA/);
+  });
+
+  it('lets an officer record a response the taxpayer made off the portal', () => {
+    for (const role of ['TA_TAXPAYER', 'TA_ASSESSOR', 'TA_SUPERVISOR']) {
+      expect(assertTransition(CaseStatus.AWAITING_TAXPAYER, ActionCode.RESPOND, [role]).to).toBe(
+        CaseStatus.IN_PREPARATION,
+      );
+    }
+  });
+
+  it('refuses a response recorded by a role with no part in the request', () => {
+    expect(() =>
+      assertTransition(CaseStatus.AWAITING_TAXPAYER, ActionCode.RESPOND, ['TA_REVIEWER']),
+    ).toThrow(UnauthorisedTransitionError);
   });
 
   it('names the required roles in the authorisation error', () => {

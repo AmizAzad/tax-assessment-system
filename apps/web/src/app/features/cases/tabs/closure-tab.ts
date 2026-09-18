@@ -16,7 +16,23 @@ import type { ClosureRecord, LineageEntry } from '../../../core/domain';
 import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '../../../shared/ui';
 
 /**
- * Reassessment, lineage and closure.
+ * The settlement position the server returns alongside a recorded payment.
+ *
+ * Mirrors `SettlementOutcome` in the API's settlement service. Declared here
+ * because the account endpoint is typed `Record<string, unknown>`, and this is
+ * the only place the shape is read.
+ */
+interface SettlementPosition {
+  readonly caseId: number;
+  readonly caseNumber: string;
+  readonly assessed: string;
+  readonly paid: string;
+  readonly outstanding: string;
+  readonly settled: boolean;
+}
+
+/**
+ * Reassessment, lineage, payments and closure.
  *
  * Plan reference: V2 sections 14.1 to 14.6.
  *
@@ -26,6 +42,13 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
  * decided by the case's status, because the status is what determines which of
  * the two is legally available. A dropdown here would invite an officer to
  * pick the wrong one.
+ *
+ * ## Why a payment is recorded from the closure tab
+ *
+ * Settlement is what makes a served case closable, and the officer chasing
+ * closure is the one holding the remittance. The entry still goes to the
+ * taxpayer's account for the period rather than to this case, because that is
+ * what a payment is against.
  *
  * ## Why the limitation override is a separate, deliberately awkward field
  *
@@ -142,6 +165,76 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
     </div>
 
     <div class="tas-card" style="margin-block-start:1rem">
+      <h2 style="margin-top:0">Payments</h2>
+      <p class="tas-muted">
+        A payment is recorded against the taxpayer's account for this tax type and year, not against
+        this case. Whether it settles the case is the platform's conclusion from the figures, not
+        anybody's assertion.
+      </p>
+      <div class="tas-grid">
+        <div class="tas-field">
+          <label for="pay-type">Payment type</label>
+          <select id="pay-type" [(ngModel)]="paymentType">
+            <option value="PAYMENT">Payment</option>
+            <option value="ADVANCE_PAYMENT">Advance payment</option>
+          </select>
+        </div>
+        <div class="tas-field">
+          <label for="pay-amount">Amount</label>
+          <input id="pay-amount" [(ngModel)]="amount" />
+          <span class="tas-field__hint">The money received, entered as a decimal string.</span>
+        </div>
+      </div>
+      <div class="tas-field" style="margin-block-start:0.75rem">
+        <label for="pay-date">Value date</label>
+        <input id="pay-date" type="date" [(ngModel)]="valueDate" />
+        <span class="tas-field__hint">The date the money was received.</span>
+      </div>
+      <div class="tas-field" style="margin-block-start:0.75rem">
+        <label for="pay-reference">Source reference</label>
+        <input id="pay-reference" [(ngModel)]="sourceReference" />
+        <span class="tas-field__hint">
+          The bank or receipt reference. The same reference cannot be credited twice.
+        </span>
+      </div>
+      <div class="tas-row" style="margin-block-start:1rem">
+        <button
+          type="button"
+          class="tas-btn tas-btn--primary"
+          [disabled]="busy()"
+          (click)="recordPayment()"
+        >
+          Record payment
+        </button>
+      </div>
+
+      @if (settlement(); as s) {
+        <dl class="tas-facts" style="margin-block-start:1rem">
+          <div>
+            <dt>Assessed</dt>
+            <dd class="tas-amount">{{ s.assessed | tasAmount }}</dd>
+          </div>
+          <div>
+            <dt>Received since the calculation</dt>
+            <dd class="tas-amount">{{ s.paid | tasAmount }}</dd>
+          </div>
+          <div>
+            <dt>Outstanding</dt>
+            <dd class="tas-amount">{{ s.outstanding | tasAmount }} {{ currency }}</dd>
+          </div>
+        </dl>
+        <p class="tas-muted">
+          @if (s.settled) {
+            The case settled on this payment.
+          } @else {
+            The case did not settle. Either the outstanding figure is still above the tolerance, or
+            the case was not awaiting a response.
+          }
+        </p>
+      }
+    </div>
+
+    <div class="tas-card" style="margin-block-start:1rem">
       <h2 style="margin-top:0">Closure</h2>
 
       @if (closure(); as c) {
@@ -236,6 +329,10 @@ export class CaseClosure implements OnInit {
 
   @Input({ required: true }) caseId!: number;
   @Input() status = '';
+  @Input({ required: true }) taxpayerId!: number;
+  @Input() taxTypeCode = '';
+  @Input() assessmentYear = '';
+  @Input() currency = '';
   @Output() readonly changed = new EventEmitter<void>();
 
   readonly closure = signal<ClosureRecord | null>(null);
@@ -243,6 +340,7 @@ export class CaseClosure implements OnInit {
   readonly reassessments = signal<readonly Record<string, unknown>[]>([]);
   readonly error = signal<string | null>(null);
   readonly busy = signal(false);
+  readonly settlement = signal<SettlementPosition | null>(null);
 
   grounds = '';
   limitationOverrideReason = '';
@@ -250,6 +348,10 @@ export class CaseClosure implements OnInit {
   retentionClass = 'STATUTORY';
   narrative = '';
   holdReason = '';
+  paymentType = 'PAYMENT';
+  amount = '';
+  valueDate = '';
+  sourceReference = '';
 
   async ngOnInit(): Promise<void> {
     await this.load();
@@ -308,5 +410,26 @@ export class CaseClosure implements OnInit {
 
   async setHold(hold: boolean): Promise<void> {
     await this.run(() => this.assessment.setLegalHold(this.caseId, hold, this.holdReason));
+  }
+
+  async recordPayment(): Promise<void> {
+    await this.run(async () => {
+      this.settlement.set(null);
+      const response = await this.assessment.recordAccountEntry(this.taxpayerId, {
+        entryType: this.paymentType,
+        taxTypeCode: this.taxTypeCode,
+        assessmentYear: this.assessmentYear,
+        amount: this.amount.trim(),
+        currencyCode: this.currency,
+        valueDate: this.valueDate,
+        sourceReference:
+          this.sourceReference.trim() === '' ? undefined : this.sourceReference.trim(),
+      });
+      const settlements = (response['settlements'] ?? []) as readonly SettlementPosition[];
+      this.settlement.set(settlements.find((entry) => entry.caseId === this.caseId) ?? null);
+      this.amount = '';
+      this.valueDate = '';
+      this.sourceReference = '';
+    });
   }
 }

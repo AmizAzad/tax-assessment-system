@@ -1141,23 +1141,45 @@ test.describe('a documented assessment', () => {
         statusAfter: await workbench.status(),
       });
 
-      await workbench.actAndExpectRefusal('Record a response', /TA_TAXPAYER|taxpayer/i);
-      await workbench.expectStatus('Awaiting taxpayer');
+      const reviewer = await as('reviewer');
+      await reviewer.goto(parked.url);
+      const reviewerBench = new Workbench(reviewer);
+      await reviewerBench.actAndExpectRefusal(
+        'Record a response',
+        /TA_TAXPAYER|TA_ASSESSOR|TA_SUPERVISOR/i,
+      );
+      await reviewerBench.expectStatus('Awaiting taxpayer');
 
-      await recorder.capture(assessor, {
-        id: 'respond-refused-to-officer',
-        title: 'A gap: only the taxpayer may answer, and they cannot reach this screen',
-        actor: 'assessor',
+      await recorder.capture(reviewer, {
+        id: 'respond-refused-to-reviewer',
+        title: 'A reviewer may not record the response',
+        actor: 'reviewer',
         transition: null,
         kind: 'refusal',
         description:
-          'The assessor presses Record a response and the server refuses: RESPOND belongs to the ' +
-          'taxpayer alone. But the taxpayer is refused the officer route with a 403, as this run ' +
-          'showed earlier, so there is no screen anywhere from which this transition can be ' +
-          'driven. The case can only leave this state on the system timeout. The button is ' +
-          'offered to an officer who can never use it.',
+          'Recording what a taxpayer sent back belongs to the officer who asked for it and to ' +
+          'their supervisor. A reviewer checks the finished assessment and has no business ' +
+          'entering evidence into it, so the server refuses and names the roles that may.',
         expected:
-          'A red alert names TA_TAXPAYER as the only permitted actor, and the status has not moved.',
+          'A red alert names the permitted actors, and the status is still Awaiting taxpayer.',
+        statusAfter: await reviewerBench.status(),
+      });
+
+      await workbench.act('Record a response');
+      await workbench.expectStatus('In preparation');
+
+      await recorder.capture(assessor, {
+        id: 'record-taxpayer-response',
+        title: 'The assessor records what the taxpayer sent back',
+        actor: 'assessor',
+        transition: 'AWAITING_TAXPAYER --RESPOND--> IN_PREPARATION',
+        kind: 'transition',
+        description:
+          'Replies arrive by post, by email and over a counter, so the response is the ' +
+          "taxpayer's act and rarely their keystroke. The assessor who asked for the " +
+          'information records what came back and the case returns to preparation. Who ' +
+          'responded is captured on the audit payload rather than inferred from who typed.',
+        expected: 'The status returns to In preparation and the ledger records INFO_RECEIVED.',
         statusAfter: await workbench.status(),
       });
     });

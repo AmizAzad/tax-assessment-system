@@ -73,11 +73,23 @@ export const CASE_TRANSITIONS: readonly CaseTransition[] = Object.freeze([
     [RoleCode.ASSESSOR],
     CaseEventType.INFO_REQUESTED,
   ),
+  /**
+   * A response to an information request is the taxpayer's act, but not always
+   * their keystroke, for the same reason an objection is not.
+   *
+   * Replies arrive by post, by email and over a counter, and the assessor who
+   * asked for the information records what came back. A taxpayer-only actor
+   * list would mean only portal users could ever answer, and every other case
+   * would sit in AWAITING_TAXPAYER until the timeout swept it.
+   *
+   * The officer roles here are recording a response, not composing one: who
+   * responded is captured on the audit payload.
+   */
   T(
     CaseStatus.AWAITING_TAXPAYER,
     ActionCode.RESPOND,
     CaseStatus.IN_PREPARATION,
-    [RoleCode.TAXPAYER],
+    [RoleCode.TAXPAYER, RoleCode.ASSESSOR, RoleCode.SUPERVISOR],
     CaseEventType.INFO_RECEIVED,
   ),
   T(
@@ -382,6 +394,17 @@ export function isTransitionPermitted(lookup: TransitionLookup): boolean {
 /** Every action available from a status, for building a UI action bar. */
 export function availableActions(from: CaseStatus): readonly (ActionCode | string)[] {
   return CASE_TRANSITIONS.filter((t) => t.from === from).map((t) => t.action);
+}
+
+/**
+ * Every status an action is legal from.
+ *
+ * For services that sweep for candidate cases: they read the statuses off the
+ * table instead of restating them, which is what let the settlement sweep and
+ * this table disagree about where PAYMENT_SETTLED applies.
+ */
+export function statusesWithAction(action: ActionCode | string): readonly CaseStatus[] {
+  return CASE_TRANSITIONS.flatMap((t) => (t.action === action && t.from !== null ? [t.from] : []));
 }
 
 /** Every status reachable in one step. */

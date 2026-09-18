@@ -127,12 +127,29 @@ type TabId =
               </label>
             }
 
+            <!--
+              Writing off abandons the debt. The reason travels on the
+              transition payload onto the ledger event, because the file has to
+              say on whose judgement the money stopped being owed.
+            -->
+            @if (canWriteOff()) {
+              <div class="tas-field" style="flex-direction:row; align-items:center; gap:0.4rem">
+                <label for="write-off-reason">Reason</label>
+                <input id="write-off-reason" [(ngModel)]="writeOffReason" style="width:11rem" />
+              </div>
+            }
+
             @for (action of permittedActions(); track action.code) {
               <button
                 type="button"
                 class="tas-btn"
                 [class.tas-btn--primary]="action.primary"
-                [disabled]="busy() || (action.code === 'ASSIGN' && assignee.trim() === '')"
+                [class.tas-btn--danger]="action.danger"
+                [disabled]="
+                  busy() ||
+                  (action.code === 'ASSIGN' && assignee.trim() === '') ||
+                  (action.code === 'WRITE_OFF' && writeOffReason.trim() === '')
+                "
                 (click)="act(action.code)"
                 [title]="action.hint"
               >
@@ -198,7 +215,15 @@ type TabId =
             <tas-case-disputes [caseId]="c.id" [status]="c.statusCode" (changed)="reload()" />
           }
           @case ('closure') {
-            <tas-case-closure [caseId]="c.id" [status]="c.statusCode" (changed)="reload()" />
+            <tas-case-closure
+              [caseId]="c.id"
+              [status]="c.statusCode"
+              [taxpayerId]="c.taxpayerId"
+              [taxTypeCode]="c.taxTypeCode"
+              [assessmentYear]="c.assessmentYear"
+              [currency]="c.currencyCode"
+              (changed)="reload()"
+            />
           }
           @case ('journey') {
             <tas-case-journey [caseId]="c.id" />
@@ -226,6 +251,7 @@ export class CaseDetail implements OnInit {
 
   /** Who the case is being assigned to. Defaulted, never assumed server-side. */
   assignee = 'assessor';
+  writeOffReason = '';
 
   /**
    * Arrow-key navigation across the tabs.
@@ -278,16 +304,17 @@ export class CaseDetail implements OnInit {
   /**
    * What can be done from the current status.
    *
-   * Mirrors the transition table for the human actions only. SYSTEM actions
-   * are absent deliberately: `RETRIEVE_DATA`, `ROUTE_APPROVAL` and `FINALISE`
-   * are performed by services from the relevant tab, because they are facts
-   * the platform asserts rather than choices anybody makes.
+   * The bar mirrors the transition table's human actions, plus the two SYSTEM
+   * transitions a permissioned service endpoint performs on the officer's
+   * behalf. `ROUTE_APPROVAL` and `FINALISE` each have a button because the
+   * officer asks for the step and the service decides its outcome. The rest of
+   * the SYSTEM transitions are consequences of other acts, so they have none.
    */
   readonly permittedActions = computed(() => {
     const status = this.assessmentCase()?.statusCode;
     const table: Record<
       string,
-      { code: string; label: string; hint: string; primary?: boolean }[]
+      { code: string; label: string; hint: string; primary?: boolean; danger?: boolean }[]
     > = {
       DATA_READY: [
         { code: 'ASSIGN', label: 'Assign', hint: 'Supervisor only', primary: true },
@@ -312,13 +339,9 @@ export class CaseDetail implements OnInit {
         { code: 'RETURN', label: 'Return for rework', hint: 'Reviewer only' },
       ],
       /**
-       * Routing is not a transition anybody performs.
-       *
-       * `ROUTE_APPROVAL` is a SYSTEM action: the band comes from the
-       * configured delegation limits and the amount, never from the caller.
-       * So the button asks the service to route, and the service decides who
-       * must approve. Without it a reviewed case had nowhere to go on screen
-       * and stopped dead at REVIEWED.
+       * The band comes from the configured delegation limits and the amount,
+       * never from the caller, so the button asks the service to route rather
+       * than naming an approver. Without it a reviewed case stopped dead.
        */
       REVIEWED: [
         {
@@ -341,8 +364,27 @@ export class CaseDetail implements OnInit {
         { code: 'REJECT', label: 'Reject', hint: 'Approver at the required level' },
       ],
       REJECTED: [{ code: 'START', label: 'Rework', hint: 'Assessor only', primary: true }],
+      APPROVED: [
+        {
+          code: 'FINALISE',
+          label: 'Finalise',
+          hint: 'Consumes the losses the calculation relied on',
+          primary: true,
+        },
+      ],
       AWAITING_TAXPAYER: [
         { code: 'RESPOND', label: 'Record a response', hint: 'Returns the case to preparation' },
+      ],
+      AWAITING_TAXPAYER_RESPONSE: [
+        {
+          code: 'WRITE_OFF',
+          label: 'Write off',
+          hint: 'Supervisor only. Terminal: the debt is abandoned',
+          danger: true,
+        },
+      ],
+      REASSESSMENT_INITIATED: [
+        { code: 'START', label: 'Start preparation', hint: 'Assessor only', primary: true },
       ],
     };
     return status === undefined ? [] : (table[status] ?? []);
@@ -367,6 +409,11 @@ export class CaseDetail implements OnInit {
     return this.permittedActions().some((action) => action.code === 'ASSIGN');
   }
 
+  /** Whether the current status offers write-off, so the reason field is shown. */
+  canWriteOff(): boolean {
+    return this.permittedActions().some((action) => action.code === 'WRITE_OFF');
+  }
+
   async act(action: string): Promise<void> {
     const current = this.assessmentCase();
     if (current === null) return;
@@ -384,9 +431,21 @@ export class CaseDetail implements OnInit {
         return;
       }
 
+      if (action === 'FINALISE') {
+        const finalised = await this.assessment.finalise(current.id);
+        await this.reload();
+        this.actionNote.set(`Finalised. Losses consumed: ${finalised.lossesConsumed}.`);
+        return;
+      }
+
       // The assignee travels with the action, so the status change and the
       // assignment are one transaction on the server.
-      const payload = action === 'ASSIGN' ? { assigneeUsername: this.assignee.trim() } : undefined;
+      const payload =
+        action === 'ASSIGN'
+          ? { assigneeUsername: this.assignee.trim() }
+          : action === 'WRITE_OFF'
+            ? { reason: this.writeOffReason.trim() }
+            : undefined;
       const updated = await this.assessment.transition(current.id, action, payload);
       this.assessmentCase.set(updated);
       this.actionNote.set(`Moved to ${updated.statusCode}.`);
