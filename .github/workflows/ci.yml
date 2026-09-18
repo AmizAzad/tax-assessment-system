@@ -28,6 +28,16 @@ jobs:
         # Includes the two architectural controls: module boundaries
         # (plan section 14.2) and the ban on monetary arithmetic (ADR-007).
         run: npm run lint
+      - name: Architectural guards
+        # The controls ESLint cannot see: which files may reach decimal.js or
+        # the unsafe Money hatches (ADR-007), that the event ledger is never
+        # mutated (ADR-009, ADR-013), and that nothing but a registered,
+        # allowlist-mapped fragment is interpolated into SQL (ADR-016).
+        run: npm run guards
+      - name: Guard self-test
+        # Proves each guard still fails on a known violation. A control nobody
+        # has watched fail is not a control.
+        run: npm run guards:self-test
       - run: npm run typecheck
 
   test:
