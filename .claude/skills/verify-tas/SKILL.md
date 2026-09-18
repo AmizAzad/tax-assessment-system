@@ -15,9 +15,9 @@ directly on `http://localhost:3000` and is the right surface when the claim
 under test is about a response body rather than a screen.
 
 > **Status.** Written from the repository and `docs/running-locally.md`; the
-> launch and drive steps have **not** been executed end to end here, because
-> Docker was not running on the machine where this was authored. Run §Launch
-> and §Doctor once, fix whatever is stale, and delete this note.
+> launch sequence below has been executed end to end on Windows with podman,
+> and every readiness line in it was observed. The drive step is covered by
+> `apps/web/e2e/`.
 
 ## Launch
 
@@ -30,6 +30,41 @@ npm run db:seed
 npm run start:api         # terminal 2 — leave running
 npm run start:web         # terminal 3 — leave running
 ```
+
+**On podman rather than Docker Desktop**, the same commands work once the
+docker CLI is pointed at podman's API socket:
+
+```bash
+export DOCKER_HOST=npipe:////./pipe/docker_engine   # podman machine publishes this
+```
+
+Three things had to be true on this machine before podman would serve it, and
+each is worth checking before concluding the stack is broken:
+
+- `/etc/wsl.conf` inside `podman-machine-default` needs `[boot] systemd=true`.
+  Without it systemd is offline, sshd never starts, and `podman machine start`
+  reports the machine as running while every connection is refused.
+- `~/.wslconfig` needs `networkingMode=mirrored`. Without it the VM's published
+  ports do not answer on `127.0.0.1`, which breaks the Keycloak redirect URIs
+  and the Playwright `baseURL` even though the containers are healthy.
+- `~/.wslconfig` needs `vmIdleTimeout=-1`, or the VM shuts down when the
+  command that started it exits and takes all five containers with it.
+
+## The workflow engine, optionally
+
+```bash
+OIDC_CLIENT_ID=tas-bpmn OIDC_CLIENT_SECRET=bpmn_local_dev_only \
+  java -jar apps/bpmn-engine/target/bpmn-engine-0.1.0.jar
+```
+
+Needs Java 17. With it running, cases are coordinated: a newly opened case
+reaches `DATA_READY` without anyone pressing a button, and SYSTEM transitions
+fire on their own. Both states are correct, so a test that insists on one will
+fail depending on whether somebody started the engine.
+
+Prove the link rather than assuming it. `curl http://localhost:8080/actuator/health`
+returns `{"status":"UP"}`, and `POST /api/v1/workflow/reconcile` as `admin-tax`
+answers with `"engineReachable": true` and an empty `divergences` array.
 
 Ready when all of these are true:
 

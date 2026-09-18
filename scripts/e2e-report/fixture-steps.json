@@ -1,0 +1,41 @@
+[
+  {
+    "n": 1,
+    "id": "case-initiated",
+    "title": "Supervisor initiates a corporation tax case",
+    "actor": "TA_SUPERVISOR",
+    "transition": "(none) --INITIATE--> INITIATED",
+    "kind": "transition",
+    "description": "The supervisor opens the case register, starts a new GB CIT case for the accounting period ending 31 March 2025, and confirms the taxpayer reference.",
+    "expected": "A case exists in status INITIATED, owned by the supervisor who created it.",
+    "screenshot": "screenshots/01-case-initiated.png",
+    "statusAfter": "INITIATED",
+    "at": "2026-09-18T09:00:00.000Z"
+  },
+  {
+    "n": 2,
+    "id": "officer-approval-refused",
+    "title": "The assessing officer cannot approve their own assessment",
+    "actor": "TA_OFFICER",
+    "transition": null,
+    "kind": "refusal",
+    "description": "Signed in as the officer who prepared the assessment, the approval action is requested against the same case.",
+    "expected": "The server refuses with 403 and the approval control is absent from the officer's view. Preparer and approver are never the same person.",
+    "screenshot": "screenshots/02-officer-approval-refused.png",
+    "statusAfter": "PENDING_APPROVAL",
+    "at": "2026-09-18T09:04:30.000Z"
+  },
+  {
+    "n": 3,
+    "id": "audit-ledger-observed",
+    "title": "The domain event ledger records the case history",
+    "actor": "TA_ADMIN",
+    "transition": null,
+    "kind": "observation",
+    "description": "The administrator opens the case audit trail and reads the events the run has produced so far.",
+    "expected": "Every lifecycle move above appears once in the ledger, in order, with the actor that drove it.",
+    "screenshot": "screenshots/03-audit-ledger-observed.png",
+    "statusAfter": null,
+    "at": "2026-09-18T09:07:15.000Z"
+  }
+]
