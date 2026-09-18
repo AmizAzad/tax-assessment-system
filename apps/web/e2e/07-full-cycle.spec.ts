@@ -1,6 +1,18 @@
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Page } from '@playwright/test';
+import { QueryTypes, Sequelize } from 'sequelize';
 import { EvidenceRecorder } from './support/evidence';
-import { apiGet, apiStatus, apiToken, expect, freeAssessmentYear, test } from './support/fixtures';
+import {
+  apiGet,
+  apiStatus,
+  apiToken,
+  expect,
+  freeAssessmentYear,
+  test,
+  type Role,
+} from './support/fixtures';
 import { Workbench } from './support/workbench';
 
 /**
@@ -19,71 +31,407 @@ import { Workbench } from './support/workbench';
  * ## What it refuses to pretend
  *
  * Several transitions in the table belong to SYSTEM and are driven by no
- * screen. Where a screen drives one as a side effect of a real act, that is
- * recorded as a transition and the description says so. Where nothing drives
- * one at all, the gap is recorded as a gap. `FINALISE` is the important case:
- * the API grants it to approvers and supervisors, the web application calls it
- * from nowhere, and the run says that in as many words rather than dressing an
- * arranged call up as an officer's click.
+ * screen of their own. Where a screen drives one as a side effect of a real
+ * act, that is recorded as a transition and the description says so: serving a
+ * notice opens the response window, a payment settles the case, a decided
+ * objection reassesses it.
  *
- * ## Why the edge cases run on their own cases
+ * Nothing here moves a case by writing its status. Every transition was
+ * reached by an officer pressing a control, by a service drawing a conclusion
+ * from figures somebody entered, or by the deadline sweep running its own
+ * code. Where a branch had to have its ground prepared first -- an account
+ * entry in the wrong currency, a deadline dated in the past -- the step that
+ * needed it says so in its own description, because arranging the facts a
+ * transition reacts to is a different thing from faking the transition.
  *
- * `CANCEL` is terminal and `REQUEST_INFO` parks a case on a taxpayer who
- * cannot reach the workbench. Either one on the main case would end the
- * journey the document exists to show, so each gets a throwaway case of its
- * own at the end of the run.
+ * ## Why the branches run on their own cases
+ *
+ * A lifecycle branches, and most of its branches end. A case that is
+ * cancelled, written off, settled or closed cannot also go on to be objected
+ * to and appealed, and `REQUEST_INFO` parks a case on a taxpayer who cannot
+ * reach the workbench. So the main case carries the ordinary history from
+ * opening to closure, and every other branch gets a case of its own, walked
+ * through the same screens to the point where it diverges and photographed
+ * from there.
  */
 
 const API = process.env['E2E_API'] ?? 'http://localhost:3000';
 
 let recorder: EvidenceRecorder;
 
+/** A case under test, and the three facts every later step needs to find it. */
+interface CaseUnderTest {
+  readonly id: number;
+  readonly url: string;
+  readonly caseNumber: string;
+}
+
+/** The officers a branch needs. `committee-member` and the taxpayer act only on the main case. */
+type Officer =
+  | 'supervisor'
+  | 'assessor'
+  | 'reviewer'
+  | 'approver'
+  | 'notice-issuer'
+  | 'objection-officer'
+  | 'appeals-officer';
+
 /**
- * Ask the platform to finalise an approved case.
+ * One signed-in page per officer, opened once and navigated thereafter.
  *
- * Arrangement, never the act under test. Nothing in `apps/web` calls
- * `POST /cases/:id/finalise` and the process definition does not either, so
- * `APPROVED --FINALISE--> FINALISED` cannot be reached by any officer through
- * any screen. Everything after it can, which is why the run arranges this one
- * move and records it as the hole it is.
+ * The main journey opens a fresh browser context for every step, which reads
+ * well and costs little over one case. The branches drive ten more cases
+ * through the same dozen screens each, and a context per step would be several
+ * hundred of them. The saved session is injected before any script runs and
+ * survives navigation, so an officer reusing a tab exercises exactly what an
+ * officer opening one does.
  */
-async function finaliseOutsideTheUi(caseId: number): Promise<void> {
-  const token = await apiToken('approver');
-  const response = await fetch(`${API}/api/v1/cases/${caseId}/finalise`, {
+type Cast = Readonly<Record<Officer, Page>>;
+
+const CAST_LIST: readonly Officer[] = [
+  'supervisor',
+  'assessor',
+  'reviewer',
+  'approver',
+  'notice-issuer',
+  'objection-officer',
+  'appeals-officer',
+];
+
+async function assembleCast(as: (role: Role) => Promise<Page>): Promise<Cast> {
+  const pages: Partial<Record<Officer, Page>> = {};
+  for (const officer of CAST_LIST) {
+    pages[officer] = await as(officer);
+  }
+  return pages as Cast;
+}
+
+function caseFrom(opened: { url: string; caseNumber: string }): CaseUnderTest {
+  const id = Number(/\/cases\/(\d+)$/.exec(opened.url)?.[1]);
+  expect(Number.isInteger(id), 'the register navigated into a numbered case').toBe(true);
+  return { id, url: opened.url, caseNumber: opened.caseNumber };
+}
+
+/** Put an officer in front of a case and hand back its workbench. */
+async function workbenchFor(cast: Cast, officer: Officer, c: CaseUnderTest): Promise<Workbench> {
+  await cast[officer].goto(c.url);
+  return new Workbench(cast[officer]);
+}
+
+/** Today, as the date inputs and the account endpoint both want it. */
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Arrange something the API owns. Never the act under test. */
+async function apiPost(role: Role, path: string, body: unknown): Promise<number> {
+  const token = await apiToken(role);
+  const response = await fetch(`${API}/api/v1${path}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: '{}',
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new Error(
-      `Could not finalise case ${caseId}: HTTP ${response.status} ${await response.text()}`,
+    throw new Error(`POST ${path} as ${role}: HTTP ${response.status} ${await response.text()}`);
+  }
+  return response.status;
+}
+
+/** Open a case and take it to preparation. The preamble every branch shares. */
+async function prepareCase(cast: Cast): Promise<CaseUnderTest> {
+  const opened = await Workbench.openCase(cast.supervisor, { year: await freeAssessmentYear() });
+  const c = caseFrom(opened);
+
+  const supervisor = new Workbench(cast.supervisor);
+  if ((await supervisor.status()) !== 'Data ready') {
+    await supervisor.retrieveEvidence();
+  }
+  await supervisor.expectStatus('Data ready');
+
+  await cast.supervisor.locator('#assignee').fill('assessor');
+  await supervisor.act('Assign');
+  await supervisor.expectStatus('Assigned');
+
+  const assessor = await workbenchFor(cast, 'assessor', c);
+  await assessor.act('Start preparation');
+  await assessor.expectStatus('In preparation');
+
+  return c;
+}
+
+/** Adjust if asked, calculate, review and route. Ends at PENDING_APPROVAL. */
+async function routeForApproval(
+  cast: Cast,
+  c: CaseUnderTest,
+  options: { adjust: boolean },
+): Promise<void> {
+  const assessor = await workbenchFor(cast, 'assessor', c);
+  if (options.adjust) {
+    await assessor.addAdjustment({
+      type: 'UNDERSTATED_REVENUE',
+      reason: 'THIRD_PARTY_MISMATCH',
+      amount: '40000.00',
+      direction: 'ADD',
+      narrative: 'Third-party data shows revenue the return does not account for.',
+    });
+  }
+  await assessor.calculate();
+  await assessor.expectStatus('Calculated');
+  await assessor.act('Submit for review');
+  await assessor.expectStatus('Under review');
+
+  const reviewer = await workbenchFor(cast, 'reviewer', c);
+  await reviewer.act('Accept');
+  await reviewer.expectStatus('Reviewed');
+  await reviewer.act('Route for approval');
+  await reviewer.expectStatus('Pending approval');
+}
+
+/** Approve, finalise, issue and serve. Ends at AWAITING_TAXPAYER_RESPONSE. */
+async function serveTheNotice(cast: Cast, c: CaseUnderTest): Promise<void> {
+  const approver = await workbenchFor(cast, 'approver', c);
+  await approver.act('Approve');
+  await approver.expectStatus('Approved');
+  await approver.act('Finalise');
+  await approver.expectStatus('Finalised');
+
+  const issuer = cast['notice-issuer'];
+  const issuerBench = await workbenchFor(cast, 'notice-issuer', c);
+  await issuerBench.tab('Notices');
+  await issuer.getByRole('button', { name: 'Issue notice' }).click();
+  await issuerBench.expectStatus('Notice generated');
+
+  await issuer.goto(c.url);
+  await issuerBench.tab('Notices');
+  await issuer.getByLabel('Channel').selectOption('EMAIL');
+  await issuer.getByLabel('Addressee').fill('finance@acme.example.com');
+  await issuer.getByLabel('Proof reference').fill(`MSG-${c.caseNumber}`);
+  await issuer.getByRole('button', { name: 'Serve' }).click();
+  await issuerBench.expectStatus('Awaiting taxpayer response');
+}
+
+/** File an objection on the taxpayer's behalf and rule it admissible. */
+async function fileAndAdmitObjection(cast: Cast, c: CaseUnderTest, summary: string): Promise<void> {
+  const officer = cast['objection-officer'];
+  const bench = await workbenchFor(cast, 'objection-officer', c);
+  await bench.tab('Disputes');
+
+  await officer.locator('#obj-summary').fill(summary);
+  await officer.locator('#obj-ground').fill('FACTUAL_ERROR');
+  await officer.locator('#obj-disputed').fill('40000.00');
+  await officer.locator('#obj-channel').selectOption('POST');
+  await officer.getByRole('button', { name: 'File objection' }).click();
+  await bench.expectStatus('Under objection');
+
+  await officer.goto(c.url);
+  await bench.tab('Disputes');
+  await officer.getByRole('button', { name: 'Work it' }).first().click();
+  await officer
+    .locator('#adm-reason')
+    .fill('Filed in time, and the grounds are particularised enough to be answered.');
+  await officer.getByRole('button', { name: 'Admit', exact: true }).click();
+  await expect(officer.getByRole('button', { name: 'Decide' })).toBeVisible({ timeout: 20_000 });
+}
+
+/** Decide an admitted objection on its merits. */
+async function decideObjection(
+  cast: Cast,
+  c: CaseUnderTest,
+  decision: 'ALLOWED' | 'PARTLY_ALLOWED' | 'REJECTED',
+  reason: string,
+): Promise<void> {
+  const officer = cast['objection-officer'];
+  const bench = await workbenchFor(cast, 'objection-officer', c);
+  await bench.tab('Disputes');
+  await officer.getByRole('button', { name: 'Work it' }).first().click();
+
+  await officer.locator('#dec-reason').fill(reason);
+  const row = officer
+    .locator('.tas-row')
+    .filter({ has: officer.getByRole('button', { name: 'Decide' }) });
+  await row.locator('select').selectOption(decision);
+  await officer.getByRole('button', { name: 'Decide' }).click();
+}
+
+/** Record that the taxpayer has taken a rejected objection to a tribunal. */
+async function fileAppeal(cast: Cast, c: CaseUnderTest, grounds: string): Promise<void> {
+  const officer = cast['appeals-officer'];
+  const bench = await workbenchFor(cast, 'appeals-officer', c);
+  await bench.tab('Disputes');
+
+  await officer.locator('#app-forum').fill('FIRST_TIER_TRIBUNAL');
+  await officer.locator('#app-ref').fill(`FTT/2026/${c.caseNumber}`);
+  await officer.locator('#app-grounds').fill(grounds);
+  await officer.getByRole('button', { name: 'File appeal' }).click();
+  await bench.expectStatus('Under appeal');
+}
+
+/**
+ * Transcribe what the forum held.
+ *
+ * The appeal's uuid is read from the API because the panel asks for it and
+ * shows only the appeal number. That is a wart on the screen rather than a
+ * shortcut around it: the outcome is still recorded by filling this form.
+ */
+async function recordAppealOutcome(
+  cast: Cast,
+  c: CaseUnderTest,
+  outcome: 'UPHELD' | 'VARIED' | 'REMANDED',
+  reason: string,
+): Promise<void> {
+  const appeals = await apiGet<{ uuid: string }[]>('supervisor', `/cases/${c.id}/appeals`);
+  expect(appeals.length, 'the appeal was recorded against the case').toBe(1);
+
+  const officer = cast['appeals-officer'];
+  const bench = await workbenchFor(cast, 'appeals-officer', c);
+  await bench.tab('Disputes');
+
+  const row = officer.locator('.tas-row').filter({ has: officer.getByPlaceholder('Appeal uuid') });
+  await row.locator('select').selectOption(outcome);
+  await officer.getByPlaceholder('Appeal uuid').fill(appeals[0]!.uuid);
+  await officer.locator('#app-outcome-reason').fill(reason);
+  await officer.getByRole('button', { name: 'Record outcome' }).click();
+}
+
+/** Ask for a reassessment from the Closure tab. The shape follows the status. */
+async function openReassessment(cast: Cast, c: CaseUnderTest, grounds: string): Promise<void> {
+  const bench = await workbenchFor(cast, 'supervisor', c);
+  await bench.tab('Closure');
+  await cast.supervisor.locator('#re-grounds').fill(grounds);
+  await cast.supervisor.getByRole('button', { name: 'Open reassessment' }).click();
+}
+
+/**
+ * Record the money, in the amount the current calculation says is due.
+ *
+ * The figure is read from the server rather than hard-coded, because the whole
+ * point of settlement is that the platform compares what was assessed with
+ * what arrived. A hard-coded amount would pass or fail on the rule set rather
+ * than on the comparison.
+ */
+async function recordPayment(cast: Cast, c: CaseUnderTest, reference: string): Promise<string> {
+  const current = await apiGet<{ netPayable: string | null }>('supervisor', `/cases/${c.id}`);
+  const net = current.netPayable;
+  const due = net === null || net.startsWith('-') || /^0+(\.0+)?$/.test(net) ? '1.00' : net;
+
+  const bench = await workbenchFor(cast, 'supervisor', c);
+  await bench.tab('Closure');
+
+  await cast.supervisor.locator('#pay-type').selectOption('PAYMENT');
+  await cast.supervisor.locator('#pay-amount').fill(due);
+  await cast.supervisor.locator('#pay-date').fill(today());
+  await cast.supervisor.locator('#pay-reference').fill(reference);
+  await cast.supervisor.getByRole('button', { name: 'Record payment' }).click();
+
+  return due;
+}
+
+/** Close a case from the Closure tab under a configured reason code. */
+async function closeCase(
+  cast: Cast,
+  c: CaseUnderTest,
+  reasonCode: string,
+  narrative: string,
+): Promise<void> {
+  const bench = await workbenchFor(cast, 'supervisor', c);
+  await bench.tab('Closure');
+  await cast.supervisor.locator('#close-reason').fill(reasonCode);
+  await cast.supervisor.locator('#close-retention').selectOption('STATUTORY');
+  await cast.supervisor.locator('#close-narrative').fill(narrative);
+  await cast.supervisor.getByRole('button', { name: 'Close case' }).click();
+}
+
+/**
+ * Put an objection deadline in the past.
+ *
+ * Arrangement, and the only part of the window-lapsed branch that is. Nothing
+ * an officer can reach sets this date: it is derived from the deemed service
+ * date, and service is always recorded as of now. So the row is edited
+ * directly, which changes a fact the sweep reacts to and changes no status.
+ * The lapse itself is still performed by the shipped sweep.
+ */
+async function backdateTheObjectionDeadline(caseId: number): Promise<number> {
+  const db = new Sequelize(
+    process.env['DB_NAME'] ?? 'tax_assessment',
+    process.env['DB_USER'] ?? 'tas',
+    process.env['DB_PASSWORD'] ?? 'tas_local_dev_only',
+    {
+      host: process.env['DB_HOST'] ?? 'localhost',
+      port: Number(process.env['DB_PORT'] ?? '5433'),
+      dialect: 'postgres',
+      logging: false,
+    },
+  );
+  try {
+    const [, affected] = await db.query(
+      `UPDATE tax.tax_assessment_deadline
+          SET due_at = CURRENT_DATE - INTERVAL '2 days', updated_at = CURRENT_TIMESTAMP
+        WHERE case_id = :caseId AND deadline_type = 'OBJECTION' AND is_active`,
+      { type: QueryTypes.UPDATE, replacements: { caseId } },
     );
+    return affected ?? 0;
+  } finally {
+    await db.close();
   }
 }
 
-/** Take a case from opened to in-preparation. The preamble the edge cases need. */
-async function prepareThrowawayCase(
-  supervisor: Page,
-  assessor: Page,
-): Promise<{ url: string; caseNumber: string }> {
-  const opened = await Workbench.openCase(supervisor, { year: await freeAssessmentYear() });
-  const workbench = new Workbench(supervisor);
-
-  if ((await workbench.status()) !== 'Data ready') {
-    await workbench.retrieveEvidence();
+/**
+ * The deadline sweep, in the scheduler's own code, in a process of its own.
+ *
+ * `DeadlineScheduler.sweep` is reachable from an hourly `@Cron` and from
+ * nothing else: the API publishes no route that runs it and there is no
+ * command for it. Waiting up to an hour inside a test is not an option, and
+ * writing the status from SQL would not be the sweep at all. So the run boots
+ * the worker's own dependency graph in a short-lived process and calls the
+ * method the cron calls. The SELECT, the cross-replica job lock and the SYSTEM
+ * transition are all the shipped ones.
+ *
+ * The `@tas/*` hook stands in for the path mapping the TypeScript build uses.
+ * The workspace packages emit to `dist/src` and their `main` does not say so,
+ * which only matters when something loads the built output directly, as here.
+ */
+const SWEEP_IN_A_CHILD_PROCESS = `
+const Module = require('module');
+const path = require('path');
+const fs = require('fs');
+const resolveFilename = Module._resolveFilename;
+Module._resolveFilename = function (request, ...rest) {
+  if (request.startsWith('@tas/')) {
+    const built = path.join(process.cwd(), 'packages', request.slice(5), 'dist', 'src', 'index.js');
+    if (fs.existsSync(built)) return built;
   }
-  await workbench.expectStatus('Data ready');
+  return resolveFilename.call(this, request, ...rest);
+};
+require('reflect-metadata');
+const { NestFactory } = require('@nestjs/core');
+const { WorkerModule } = require('./apps/worker/dist/worker/src/worker.module.js');
+const scheduler = require('./apps/worker/dist/api/src/tax-assessment/deadline/deadline.scheduler.js');
+NestFactory.createApplicationContext(WorkerModule, { logger: ['error'] })
+  .then(async (context) => {
+    await context.get(scheduler.DeadlineScheduler, { strict: false }).sweep();
+    await context.close();
+    console.log('SWEEP_COMPLETED');
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+`;
 
-  await supervisor.locator('#assignee').fill('assessor');
-  await workbench.act('Assign');
-  await workbench.expectStatus('Assigned');
-
-  await assessor.goto(opened.url);
-  const assessorWorkbench = new Workbench(assessor);
-  await assessorWorkbench.act('Start preparation');
-  await assessorWorkbench.expectStatus('In preparation');
-
-  return opened;
+function runTheDeadlineSweep(): string {
+  const built = join(process.cwd(), 'apps', 'worker', 'dist', 'worker', 'src', 'worker.module.js');
+  if (!existsSync(built)) {
+    throw new Error(
+      `The worker build is missing at ${built}. Run \`npm run build --workspace @tas/worker\` ` +
+        'first: this step runs the shipped scheduler rather than a copy of it.',
+    );
+  }
+  return execFileSync(process.execPath, ['-e', SWEEP_IN_A_CHILD_PROCESS], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    timeout: 180_000,
+  });
 }
 
 test.describe('a documented assessment', () => {
@@ -93,9 +441,10 @@ test.describe('a documented assessment', () => {
   });
 
   test('runs from initiation to closure, and says what it could not drive', async ({ as }) => {
-    // Three cases, nine officers and a dispute. The suite-wide 60 second
-    // budget is for a single stage, not for a whole case history.
-    test.setTimeout(900_000);
+    // Twelve cases, nine officers, four disputes and a deadline sweep. The
+    // suite-wide 60 second budget is for a single stage, not for a whole
+    // register's worth of case histories.
+    test.setTimeout(3_600_000);
 
     let caseUrl = '';
     let caseNumber = '';
@@ -583,35 +932,33 @@ test.describe('a documented assessment', () => {
       });
     });
 
-    await test.step('finalisation turns out to have no screen', async () => {
+    await test.step('the approver finalises the determination', async () => {
       const before = await apiGet<{ statusCode: string }>('supervisor', `/cases/${caseId}`);
-      expect(
-        before.statusCode,
-        'nothing in the application or the process definition finalises an approved case',
-      ).toBe('APPROVED');
-
-      await finaliseOutsideTheUi(caseId);
+      expect(before.statusCode, 'the case is approved and not yet final').toBe('APPROVED');
 
       const page = await as('approver');
       await page.goto(caseUrl);
       const workbench = new Workbench(page);
+
+      await workbench.act('Finalise');
       await workbench.expectStatus('Finalised');
 
       await recorder.capture(page, {
-        id: 'finalisation-has-no-screen',
-        title: 'A gap: nothing an officer can press finalises a case',
+        id: 'finalise',
+        title: 'The approved figure becomes a determination',
         actor: 'approver',
-        transition: null,
-        kind: 'observation',
+        transition: 'APPROVED --FINALISE--> FINALISED',
+        kind: 'transition',
         description:
-          'APPROVED to FINALISED is the only move in this journey that no officer can make. The ' +
-          'API grants POST /cases/{id}/finalise to approvers and supervisors, the web ' +
-          'application calls it from nowhere, and the process definition has no step for it ' +
-          'either, so an approved case stops dead. This run called that endpoint directly to ' +
-          'reach the stages after it; the transition is deliberately left unrecorded, because ' +
-          'no screen drove it and the coverage matrix should say so.',
+          'The approver presses Finalise. This is the point of no return: finalising consumes ' +
+          'the brought-forward losses the calculation relied on, so those losses are spent ' +
+          'against this year and cannot be spent again, and the figures stop being ' +
+          'recomputable. It is a second, deliberate act rather than a consequence of approval ' +
+          'because approving says the number is right and finalising says the authority is now ' +
+          'standing on it.',
         expected:
-          'The case was APPROVED before the call and reads Finalised after it, with no control on any screen that performs it.',
+          'The status reads Finalised, and the action bar empties because a finalised case ' +
+          'offers no further lifecycle action.',
         statusAfter: await workbench.status(),
       });
     });
@@ -1086,22 +1433,24 @@ test.describe('a documented assessment', () => {
       });
     });
 
-    await test.step('cancelling a case opened in error turns out to be unreachable', async () => {
-      const page = await as('supervisor');
+    const cast = await assembleCast(as);
+
+    await test.step('the action bar offers a cancel the state machine will not allow', async () => {
+      const page = cast.supervisor;
       const opened = await Workbench.openCase(page, { year: await freeAssessmentYear() });
       const workbench = new Workbench(page);
 
-      // The engine refreshes evidence within a second of a case opening, so
-      // INITIATED, the only state the table allows CANCEL from, is gone
-      // before the workbench has finished loading. Racing it would buy a
-      // flaky test rather than coverage.
+      // The engine refreshes evidence within a second of a case opening, so a
+      // case whose sources all answer is past INITIATED before the workbench
+      // has finished loading. Racing it would buy a flaky test rather than
+      // coverage; the branch that follows holds a case at INITIATED honestly.
       await workbench.expectStatus('Data ready');
       await workbench.actAndExpectRefusal('Cancel', /No transition defined from DATA_READY/i);
       await workbench.expectStatus('Data ready');
 
       await recorder.capture(page, {
         id: 'cancel-offered-but-not-defined',
-        title: 'A gap: the only state a case can be cancelled from lasts about a second',
+        title: 'A defect: Cancel is offered from a state it is not permitted from',
         actor: 'supervisor',
         transition: null,
         kind: 'refusal',
@@ -1117,10 +1466,80 @@ test.describe('a documented assessment', () => {
       });
     });
 
+    await test.step('a case that never became workable is cancelled', async () => {
+      const year = await freeAssessmentYear();
+
+      // Arrangement, stated because it matters: the taxpayer's account for
+      // this period is given a euro entry, which makes the mandatory
+      // TAXPAYER_ACCOUNT source refuse to answer a sterling case rather than
+      // silently convert it. The case therefore stays at INITIATED instead of
+      // being carried to DATA_READY a second after it opens, which is the only
+      // state CANCEL is permitted from.
+      await apiPost('supervisor', '/taxpayers/1/account', {
+        entryType: 'ADVANCE_PAYMENT',
+        taxTypeCode: 'CIT',
+        assessmentYear: year,
+        amount: '250.00',
+        currencyCode: 'EUR',
+        valueDate: today(),
+        sourceReference: `E2E-EUR-${year}`,
+        narrative: 'Seeded in euro so the account source cannot answer a sterling case.',
+      });
+
+      const opened = await Workbench.openCase(cast.supervisor, { year });
+      const stuck = caseFrom(opened);
+      const workbench = new Workbench(cast.supervisor);
+      await workbench.expectStatus('Initiated');
+
+      // Pressed by hand rather than left to the engine's callback, because the
+      // failure panel reports the retrieval this officer asked for. Waiting on
+      // somebody else's retrieval would photograph an empty tab.
+      await workbench.retrieveEvidence();
+      await expect(
+        cast.supervisor.locator('.tas-alert--danger').filter({ hasText: 'Case not advanced' }),
+      ).toContainText(/currency translation is not automatic/i, { timeout: 20_000 });
+      await workbench.expectStatus('Initiated');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'held-at-initiated',
+        title: 'A mandatory source that cannot answer holds the case at the door',
+        actor: 'supervisor',
+        transition: null,
+        kind: 'observation',
+        description:
+          `Case ${stuck.caseNumber} opens against a taxpayer whose account for this period holds ` +
+          'euro entries while the case is assessed in sterling. The account source refuses ' +
+          'rather than converting, because an exchange rate buried inside evidence retrieval is ' +
+          'one nobody would ever find again. It is a mandatory source, so the case does not ' +
+          'become workable and sits at Initiated.',
+        expected:
+          'The retrieval panel reads "Case not advanced", lists TAXPAYER_ACCOUNT as a mandatory source that failed on the currency mismatch, and the status is still Initiated.',
+        statusAfter: await workbench.status(),
+      });
+
+      await workbench.act('Cancel');
+      await workbench.expectStatus('Cancelled');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'cancel-case',
+        title: 'A case opened in error is cancelled outright',
+        actor: 'supervisor',
+        transition: 'INITIATED --CANCEL--> CANCELLED',
+        kind: 'transition',
+        description:
+          'A supervisor cancels the case. Cancellation is permitted only before any evidence has ' +
+          'been gathered on it, which is why the window is so narrow: once the authority has ' +
+          "pulled a taxpayer's data it has acted, and the file has to be closed with a reason " +
+          'rather than made to disappear. Cancelling is terminal and leaves the period free for ' +
+          'a fresh case.',
+        expected: 'The status reads Cancelled and the action bar is gone entirely.',
+        statusAfter: await workbench.status(),
+      });
+    });
+
     await test.step('the assessor asks the taxpayer for information', async () => {
-      const supervisor = await as('supervisor');
-      const assessor = await as('assessor');
-      const parked = await prepareThrowawayCase(supervisor, assessor);
+      const assessor = cast.assessor;
+      const parked = await prepareCase(cast);
 
       const workbench = new Workbench(assessor);
       await workbench.act('Request information');
@@ -1181,6 +1600,570 @@ test.describe('a documented assessment', () => {
           'responded is captured on the audit payload rather than inferred from who typed.',
         expected: 'The status returns to In preparation and the ledger records INFO_RECEIVED.',
         statusAfter: await workbench.status(),
+      });
+    });
+
+    let rejected: CaseUnderTest;
+
+    await test.step('an approver refuses to sign the assessment off', async () => {
+      rejected = await prepareCase(cast);
+      await routeForApproval(cast, rejected, { adjust: true });
+
+      const approver = await workbenchFor(cast, 'approver', rejected);
+      await approver.act('Reject');
+      await approver.expectStatus('Rejected');
+
+      await recorder.capture(cast.approver, {
+        id: 'approver-rejects',
+        title: 'Approval is a decision, so it can go the other way',
+        actor: 'approver',
+        transition: 'PENDING_APPROVAL --REJECT--> REJECTED',
+        kind: 'transition',
+        description:
+          `Case ${rejected.caseNumber} reaches an approver who is not satisfied with it. ` +
+          'Rejection is a distinct state rather than a quiet bounce back to preparation, because ' +
+          'an assessment an approver declined to sign is a different fact from one still being ' +
+          'written, and a case rejected twice has to read differently from one approved first ' +
+          'time.',
+        expected:
+          'The status reads Rejected, the bar confirms the move, and the only action now offered is Rework.',
+        statusAfter: await approver.status(),
+      });
+
+      const assessor = await workbenchFor(cast, 'assessor', rejected);
+      await assessor.act('Rework');
+      await assessor.expectStatus('In preparation');
+
+      await recorder.capture(cast.assessor, {
+        id: 'rework-after-rejection',
+        title: 'The assessor takes the rejected assessment back',
+        actor: 'assessor',
+        transition: 'REJECTED --START--> IN_PREPARATION',
+        kind: 'transition',
+        description:
+          'A rejected case returns to the same preparation state a returned review does, and by ' +
+          'the same action, because the work is the same work. What distinguishes the two is the ' +
+          'history rather than a bespoke state: the ledger holds who rejected it and why, and ' +
+          'the next submission is plainly a resubmission.',
+        expected:
+          'The status reads In preparation and the bar offers the assessor the work again rather than a fresh case.',
+        statusAfter: await assessor.status(),
+      });
+    });
+
+    await test.step('a debt nobody will collect is written off', async () => {
+      await routeForApproval(cast, rejected, { adjust: false });
+      await serveTheNotice(cast, rejected);
+
+      const supervisor = await workbenchFor(cast, 'supervisor', rejected);
+      await supervisor.expectStatus('Awaiting taxpayer response');
+      await cast.supervisor
+        .locator('#write-off-reason')
+        .fill('Company dissolved; no assets and no successor to pursue.');
+      await supervisor.act('Write off');
+      await supervisor.expectStatus('Written off');
+      await supervisor.tab('Timeline');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'write-off',
+        title: 'The authority gives up on money it is owed',
+        actor: 'supervisor',
+        transition: 'AWAITING_TAXPAYER_RESPONSE --WRITE_OFF--> WRITTEN_OFF',
+        kind: 'transition',
+        description:
+          `The notice on case ${rejected.caseNumber} was served and nothing came back, and the ` +
+          'company behind it no longer exists. A supervisor abandons the debt. The control is ' +
+          'styled as a destructive one and will not fire without a reason typed next to it, ' +
+          'because the file has to record on whose judgement the money stopped being owed. ' +
+          'Writing off is terminal.',
+        expected:
+          'The status reads Written off and the newest row of the case history moves it there from Awaiting taxpayer response, carrying the reason the supervisor typed.',
+        statusAfter: await supervisor.status(),
+      });
+    });
+
+    await test.step('an objection is allowed, and the case is assessed again', async () => {
+      const allowed = await prepareCase(cast);
+      await routeForApproval(cast, allowed, { adjust: true });
+      await serveTheNotice(cast, allowed);
+      await fileAndAdmitObjection(
+        cast,
+        allowed,
+        'The third-party revenue figure is the same intra-group sales already declared on the return.',
+      );
+      await decideObjection(
+        cast,
+        allowed,
+        'ALLOWED',
+        'The invoices supplied match the declared sales line for line. The adjustment falls away.',
+      );
+
+      const officer = new Workbench(cast['objection-officer']);
+      await officer.expectStatus('Objection allowed');
+
+      await recorder.capture(cast['objection-officer'], {
+        id: 'objection-allowed',
+        title: 'The authority finds against itself',
+        actor: 'objection-officer',
+        transition: 'UNDER_OBJECTION --DECIDE_ALLOWED--> OBJECTION_ALLOWED',
+        kind: 'transition',
+        description:
+          'The objection officer accepts the taxpayer’s case in full and must say why, as with ' +
+          'any other decision. Allowing an objection does not by itself change the figures: it ' +
+          'establishes that they are wrong, and the correction is a separate act with its own ' +
+          'record, so that what was decided and what was done about it can be read apart.',
+        expected:
+          'The status reads Objection allowed and the decision is listed with the reasons given for it.',
+        statusAfter: await officer.status(),
+      });
+
+      await openReassessment(
+        cast,
+        allowed,
+        'The objection was allowed in full; the understated revenue adjustment is withdrawn.',
+      );
+      const supervisor = new Workbench(cast.supervisor);
+      await supervisor.expectStatus('Reassessment initiated');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'reassess-after-objection-allowed',
+        title: 'The correction is opened on the same case',
+        actor: 'supervisor',
+        transition: 'OBJECTION_ALLOWED --REASSESS--> REASSESSMENT_INITIATED',
+        kind: 'transition',
+        description:
+          'There is one reassessment control and no dropdown asking which kind. Because this ' +
+          'case carries a dispute outcome, the platform continues the same case rather than ' +
+          'opening a successor, and it records the grounds and whether the reassessment reaches ' +
+          'past the limitation date. The move belongs to SYSTEM: it follows from the decision ' +
+          'already recorded, not from a fresh judgement by the officer who asked for it.',
+        expected:
+          'The status reads Reassessment initiated and the reassessment is listed with its shape, trigger and grounds.',
+        statusAfter: await supervisor.status(),
+      });
+
+      const assessor = await workbenchFor(cast, 'assessor', allowed);
+      await assessor.act('Start preparation');
+      await assessor.expectStatus('In preparation');
+
+      await recorder.capture(cast.assessor, {
+        id: 'start-reassessment',
+        title: 'The reassessment is picked up like any other work',
+        actor: 'assessor',
+        transition: 'REASSESSMENT_INITIATED --START--> IN_PREPARATION',
+        kind: 'transition',
+        description:
+          'An assessor takes the reassessment up and it re-enters the ordinary path: prepare, ' +
+          'calculate, review, approve. Nothing about a case having been disputed lets it skip ' +
+          'the controls, and the corrected figure will be reviewed by somebody other than the ' +
+          'officer who produces it exactly as the first one was.',
+        expected:
+          'The status reads In preparation and the bar offers the ordinary preparation actions, on the same case number as before.',
+        statusAfter: await assessor.status(),
+      });
+    });
+
+    await test.step('an objection is allowed in part', async () => {
+      const partly = await prepareCase(cast);
+      await routeForApproval(cast, partly, { adjust: true });
+      await serveTheNotice(cast, partly);
+      await fileAndAdmitObjection(
+        cast,
+        partly,
+        'Part of the third-party revenue figure is intra-group; the remainder is accepted.',
+      );
+      await decideObjection(
+        cast,
+        partly,
+        'PARTLY_ALLOWED',
+        'Half the disputed sales are evidenced as intra-group. The balance stands unexplained.',
+      );
+
+      const officer = new Workbench(cast['objection-officer']);
+      await officer.expectStatus('Objection partly allowed');
+
+      await recorder.capture(cast['objection-officer'], {
+        id: 'objection-partly-allowed',
+        title: 'Most disputes end somewhere in the middle',
+        actor: 'objection-officer',
+        transition: 'UNDER_OBJECTION --DECIDE_PARTLY_ALLOWED--> OBJECTION_PARTLY_ALLOWED',
+        kind: 'transition',
+        description:
+          'A partial outcome is its own state rather than a note on an allowance, because what ' +
+          'happens next differs: the assessment is neither withdrawn nor left standing, and the ' +
+          'appeal rights that follow are calculated against a figure that has moved. Each ground ' +
+          'can carry its own outcome, so the taxpayer can see which of their arguments landed.',
+        expected:
+          'The status reads Objection partly allowed and the decision is listed with its reasons.',
+        statusAfter: await officer.status(),
+      });
+
+      await openReassessment(
+        cast,
+        partly,
+        'The objection was partly allowed; the revenue adjustment is reduced to the unexplained balance.',
+      );
+      const supervisor = new Workbench(cast.supervisor);
+      await supervisor.expectStatus('Reassessment initiated');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'reassess-after-objection-partly-allowed',
+        title: 'A partial outcome reopens the same case',
+        actor: 'supervisor',
+        transition: 'OBJECTION_PARTLY_ALLOWED --REASSESS--> REASSESSMENT_INITIATED',
+        kind: 'transition',
+        description:
+          'The same control, the same shape, a different starting status. A partly allowed ' +
+          'objection leaves an assessment that is wrong in a known way, so the case is ' +
+          'reassessed in place and the earlier calculation is superseded rather than edited. ' +
+          'Both figures stay on the file, because which number was demanded when is a fact an ' +
+          'appeal can turn on.',
+        expected:
+          'The status reads Reassessment initiated and the reassessment records the grounds for reopening.',
+        statusAfter: await supervisor.status(),
+      });
+    });
+
+    await test.step('a rejected objection that is never appealed is closed', async () => {
+      const unappealed = await prepareCase(cast);
+      await routeForApproval(cast, unappealed, { adjust: true });
+      await serveTheNotice(cast, unappealed);
+      await fileAndAdmitObjection(
+        cast,
+        unappealed,
+        'The taxpayer disputes the revenue adjustment but supplies nothing new in support.',
+      );
+      await decideObjection(
+        cast,
+        unappealed,
+        'REJECTED',
+        'No evidence was supplied beyond the assertion. The third-party figure stands.',
+      );
+
+      const officer = new Workbench(cast['objection-officer']);
+      await officer.expectStatus('Objection rejected');
+
+      await closeCase(
+        cast,
+        unappealed,
+        'DISPUTE_EXHAUSTED',
+        'Objection rejected and the appeal window closed without an appeal being lodged.',
+      );
+      const supervisor = new Workbench(cast.supervisor);
+      await supervisor.expectStatus('Closed');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'close-after-objection-rejected',
+        title: 'The other end of a rejected objection',
+        actor: 'supervisor',
+        transition: 'OBJECTION_REJECTED --CLOSE--> CLOSED',
+        kind: 'transition',
+        description:
+          `The objection on case ${unappealed.caseNumber} was rejected and the appeal window ran ` +
+          'out without an appeal. The main case in this document took the other road and went to ' +
+          'a tribunal; this one simply ends. Closing freezes what was assessed, what was paid ' +
+          'and what is left under a reason code the jurisdiction configures, and sets the date ' +
+          'the file may be destroyed.',
+        expected:
+          'The status reads Closed and the closure record shows DISPUTE_EXHAUSTED, the frozen balance and the retention date.',
+        statusAfter: await supervisor.status(),
+      });
+    });
+
+    await test.step('a tribunal varies the assessment', async () => {
+      const varied = await prepareCase(cast);
+      await routeForApproval(cast, varied, { adjust: true });
+      await serveTheNotice(cast, varied);
+      await fileAndAdmitObjection(
+        cast,
+        varied,
+        'The revenue adjustment is disputed in full on the intra-group point.',
+      );
+      await decideObjection(
+        cast,
+        varied,
+        'REJECTED',
+        'The intra-group point was not made out on the material supplied.',
+      );
+      await fileAppeal(
+        cast,
+        varied,
+        'The rejection did not engage with the reconciliation the taxpayer supplied.',
+      );
+      await recordAppealOutcome(
+        cast,
+        varied,
+        'VARIED',
+        'The tribunal accepted part of the reconciliation and reduced the adjustment accordingly.',
+      );
+
+      const officer = new Workbench(cast['appeals-officer']);
+      await officer.expectStatus('Appeal varied');
+
+      await recorder.capture(cast['appeals-officer'], {
+        id: 'appeal-varied',
+        title: 'The tribunal changes the figure rather than the principle',
+        actor: 'appeals-officer',
+        transition: 'UNDER_APPEAL --RECORD_VARIED--> APPEAL_VARIED',
+        kind: 'transition',
+        description:
+          'There is no approve control on this panel. An appeal is decided by a forum outside ' +
+          'the authority, so the officer transcribes a judgment and must record the reasons ' +
+          'given for it. A variation leaves the assessment alive at a different number, which is ' +
+          'why the case can be reassessed rather than only closed.',
+        expected:
+          'The status reads Appeal varied and the appeal is listed as Decided against its forum and reference, with outcome VARIED.',
+        statusAfter: await officer.status(),
+      });
+
+      await openReassessment(
+        cast,
+        varied,
+        'Giving effect to the tribunal decision varying the revenue adjustment.',
+      );
+      const supervisor = new Workbench(cast.supervisor);
+      await supervisor.expectStatus('Reassessment initiated');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'reassess-after-appeal-varied',
+        title: 'Giving effect to what the tribunal held',
+        actor: 'supervisor',
+        transition: 'APPEAL_VARIED --REASSESS--> REASSESSMENT_INITIATED',
+        kind: 'transition',
+        description:
+          'Recording an outcome and giving effect to it are two acts, and the gap between them ' +
+          'is what an authority gets asked about. The reassessment is what implements the ' +
+          'decision, and its trigger is recorded as an appeal decision rather than as an ' +
+          'objection, so a report can tell which forum caused which correction.',
+        expected:
+          'The status reads Reassessment initiated and the reassessment is triggered by the appeal decision.',
+        statusAfter: await supervisor.status(),
+      });
+    });
+
+    await test.step('a tribunal sends the assessment back to be done again', async () => {
+      const remanded = await prepareCase(cast);
+      await routeForApproval(cast, remanded, { adjust: true });
+      await serveTheNotice(cast, remanded);
+      await fileAndAdmitObjection(
+        cast,
+        remanded,
+        'The taxpayer says the objection was decided without the documents being read.',
+      );
+      await decideObjection(
+        cast,
+        remanded,
+        'REJECTED',
+        'The adjustment is maintained on the third-party data.',
+      );
+      await fileAppeal(
+        cast,
+        remanded,
+        'The authority decided the objection without considering the bundle that was lodged with it.',
+      );
+      await recordAppealOutcome(
+        cast,
+        remanded,
+        'REMANDED',
+        'The tribunal made no finding on the figures and remitted the matter to be reconsidered.',
+      );
+
+      const officer = new Workbench(cast['appeals-officer']);
+      await officer.expectStatus('Appeal remanded');
+
+      await recorder.capture(cast['appeals-officer'], {
+        id: 'appeal-remanded',
+        title: 'The tribunal declines to decide and sends it back',
+        actor: 'appeals-officer',
+        transition: 'UNDER_APPEAL --RECORD_REMANDED--> APPEAL_REMANDED',
+        kind: 'transition',
+        description:
+          'A remittal is not a win for either side. The forum has held that the authority did ' +
+          'not decide the matter properly and must do it again, so the assessment is neither ' +
+          'upheld nor set aside. Modelling it as its own outcome keeps that distinction: a case ' +
+          'remitted for reconsideration reads nothing like one the tribunal decided on its ' +
+          'merits.',
+        expected:
+          'The status reads Appeal remanded and the appeal is listed as Decided against its forum and reference, with outcome REMANDED.',
+        statusAfter: await officer.status(),
+      });
+
+      await openReassessment(
+        cast,
+        remanded,
+        'Reconsidering the assessment as the tribunal directed, on the bundle previously lodged.',
+      );
+      const supervisor = new Workbench(cast.supervisor);
+      await supervisor.expectStatus('Reassessment initiated');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'reassess-after-appeal-remanded',
+        title: 'Doing it again, as directed',
+        actor: 'supervisor',
+        transition: 'APPEAL_REMANDED --REASSESS--> REASSESSMENT_INITIATED',
+        kind: 'transition',
+        description:
+          'The remittal reopens the same case rather than opening a successor, because the ' +
+          'period was never finally determined. The grounds recorded here are the direction the ' +
+          'tribunal gave, so the reason the authority is looking at this period a second time is ' +
+          'on the file rather than in somebody’s memory.',
+        expected:
+          'The status reads Reassessment initiated and the grounds record the tribunal’s direction.',
+        statusAfter: await supervisor.status(),
+      });
+    });
+
+    await test.step('a taxpayer loses an appeal and then pays', async () => {
+      const upheld = await prepareCase(cast);
+      await routeForApproval(cast, upheld, { adjust: true });
+      await serveTheNotice(cast, upheld);
+      await fileAndAdmitObjection(
+        cast,
+        upheld,
+        'The revenue adjustment is disputed on the ground that the sales were intra-group.',
+      );
+      await decideObjection(
+        cast,
+        upheld,
+        'REJECTED',
+        'The sales were not shown to be intra-group. The adjustment is maintained.',
+      );
+      await fileAppeal(cast, upheld, 'The objection decision misread the third-party data.');
+      await recordAppealOutcome(
+        cast,
+        upheld,
+        'UPHELD',
+        'The tribunal found the third-party data reliable and upheld the assessment in full.',
+      );
+
+      const officer = new Workbench(cast['appeals-officer']);
+      await officer.expectStatus('Appeal upheld');
+
+      await recorder.capture(cast['appeals-officer'], {
+        id: 'appeal-upheld',
+        title: 'The assessment survives the tribunal',
+        actor: 'appeals-officer',
+        transition: 'UNDER_APPEAL --RECORD_UPHELD--> APPEAL_UPHELD',
+        kind: 'transition',
+        description:
+          'The forum upholds the assessment, so the figure stands and the money is due. Nothing ' +
+          'needs correcting, which is why this outcome leads to payment rather than to a ' +
+          'reassessment. The officer records the reasons all the same, because an upheld ' +
+          'assessment is the one a taxpayer is most likely to take further.',
+        expected:
+          'The status reads Appeal upheld and the appeal is listed as Decided against its forum and reference, with outcome UPHELD.',
+        statusAfter: await officer.status(),
+      });
+
+      const paid = await recordPayment(cast, upheld, `BACS-${upheld.caseNumber}`);
+      const supervisor = new Workbench(cast.supervisor);
+      await supervisor.expectStatus('Settled');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'settle-after-appeal-upheld',
+        title: 'The money arrives after the appeal is lost',
+        actor: 'system (settlement service)',
+        transition: 'APPEAL_UPHELD --PAYMENT_SETTLED--> SETTLED',
+        kind: 'transition',
+        description:
+          `A supervisor records ${paid} received against the taxpayer's account for this period, ` +
+          'with its bank reference and value date. Nobody presses a control called settled: the ' +
+          'platform compares what the current calculation assessed against what has arrived ' +
+          'since, and draws the conclusion itself. A button would let a case be marked paid ' +
+          'without the money, which is the most damaging false record a revenue system can hold.',
+        expected:
+          'The status reads Settled and the screen shows the assessed figure, the amount received since the calculation, and nothing outstanding.',
+        statusAfter: await supervisor.status(),
+      });
+
+      await closeCase(
+        cast,
+        upheld,
+        'SETTLED_IN_FULL',
+        'Appeal upheld and the assessed amount paid in full. Nothing further is due either way.',
+      );
+      await supervisor.expectStatus('Closed');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'close-after-settlement',
+        title: 'A paid case is closed and its position frozen',
+        actor: 'supervisor',
+        transition: 'SETTLED --CLOSE--> CLOSED',
+        kind: 'transition',
+        description:
+          'Settlement says the money arrived; closure says the authority is finished with the ' +
+          'file. They are separate because a settled case can still have work on it, and ' +
+          'because the closing balance is snapshotted rather than recomputed on every later ' +
+          'read. The file has to keep saying what it said at the time, whatever later payments ' +
+          'or corrections do to the account.',
+        expected:
+          'The status reads Closed and the closure record shows SETTLED_IN_FULL with the frozen assessed, paid and balance figures.',
+        statusAfter: await supervisor.status(),
+      });
+    });
+
+    await test.step('a served notice is simply paid', async () => {
+      const settled = await prepareCase(cast);
+      await routeForApproval(cast, settled, { adjust: true });
+      await serveTheNotice(cast, settled);
+
+      const paid = await recordPayment(cast, settled, `BACS-${settled.caseNumber}`);
+      const supervisor = new Workbench(cast.supervisor);
+      await supervisor.expectStatus('Settled');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'settle-after-notice-served',
+        title: 'The ordinary ending: the taxpayer pays the notice',
+        actor: 'system (settlement service)',
+        transition: 'AWAITING_TAXPAYER_RESPONSE --PAYMENT_SETTLED--> SETTLED',
+        kind: 'transition',
+        description:
+          `The notice on case ${settled.caseNumber} was served and ${paid} arrived inside the ` +
+          'response window. The payment is recorded against the taxpayer’s account for the tax ' +
+          'type and year rather than against the case, because that is what a payment is made ' +
+          'against, and a period can carry more than one case over its life. Only payments ' +
+          'received after the calculation ran count towards it; the earlier ones were already ' +
+          'netted off in the figure being demanded. A residue under one unit of currency is ' +
+          'treated as settled, because chasing two pence costs more than the two pence.',
+        expected:
+          'The status reads Settled and the screen shows the assessed figure, what was received since the calculation, and nothing outstanding.',
+        statusAfter: await supervisor.status(),
+      });
+    });
+
+    await test.step('a response window closes on its own when nobody answers', async () => {
+      const ignored = await prepareCase(cast);
+      await routeForApproval(cast, ignored, { adjust: true });
+      await serveTheNotice(cast, ignored);
+
+      const backdated = await backdateTheObjectionDeadline(ignored.id);
+      expect(backdated, 'the objection deadline was moved into the past').toBeGreaterThan(0);
+
+      const output = runTheDeadlineSweep();
+      expect(output, 'the sweep ran to completion').toContain('SWEEP_COMPLETED');
+
+      const supervisor = await workbenchFor(cast, 'supervisor', ignored);
+      await supervisor.expectStatus('Closed');
+      await supervisor.tab('Timeline');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'response-window-lapsed',
+        title: 'A deadline passing is an event, not an absence',
+        actor: 'system (deadline sweep)',
+        transition: 'AWAITING_TAXPAYER_RESPONSE --WINDOW_LAPSED--> CLOSED',
+        kind: 'transition',
+        description:
+          `Nobody objected to the notice on case ${ignored.caseNumber} and the window ran out. ` +
+          'Storing a due date makes nothing happen when it passes, so a sweep closes the window ' +
+          'and the case with it. Two things were arranged for this step and are stated plainly: ' +
+          'the objection deadline row was dated two days into the past by a direct update, ' +
+          'because no screen back-dates a deemed service date, and the sweep was run in a ' +
+          'process of its own because it is reachable only from an hourly cron. The transition ' +
+          'itself was performed by the shipped scheduler under a SYSTEM identity, with no ' +
+          'status written by this test.',
+        expected:
+          'The status reads Closed and the newest row of the case history is WINDOW_LAPSED, moving the case from Awaiting taxpayer response to Closed under the sweep’s own reason.',
+        statusAfter: await supervisor.status(),
       });
     });
   });
