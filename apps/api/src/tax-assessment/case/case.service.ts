@@ -17,6 +17,7 @@ import {
 } from '@tas/contracts';
 import { QueryTypes, Transaction, type Sequelize } from 'sequelize';
 import { ReferenceNumberService } from '../../forms/reference-number.service';
+import { DeadlineService } from '../deadline/deadline.service';
 import { SlaService } from '../deadline/sla.service';
 import { ProcessOrchestrationService } from '../workflow/process-orchestration.service';
 import { SEQUELIZE } from '../../infrastructure/tokens';
@@ -89,6 +90,7 @@ export class CaseService {
     private readonly referenceNumbers: ReferenceNumberService,
     private readonly sla: SlaService,
     private readonly processes: ProcessOrchestrationService,
+    private readonly deadlines: DeadlineService,
   ) {}
 
   // ------------------------------------------------------------------ create
@@ -335,7 +337,12 @@ export class CaseService {
     // started after one: the register must not hold locks across a call to a
     // separate system, and the engine must never be told about a movement that
     // was then rolled back.
-    await this.processes.onTransition(moved, action, moved.statusCode, payload);
+    const engineVariables =
+      moved.statusCode === CaseStatus.AWAITING_TAXPAYER
+        ? { ...payload, ...(await this.informationRequestWindow(moved, caller)) }
+        : payload;
+
+    await this.processes.onTransition(moved, action, moved.statusCode, engineVariables);
 
     // A case that ends without completing the flow leaves an instance waiting
     // on a task nobody will do. Those are what fill an engine with ghosts.
@@ -344,6 +351,76 @@ export class CaseService {
     }
 
     return moved;
+  }
+
+  /**
+   * The date an information request has to be answered by, for the engine.
+   *
+   * The process waits for the taxpayer on a boundary timer, and the timer
+   * needs a date. Taking it from a duration in the diagram would put the
+   * United Kingdom's response period into a definition every jurisdiction
+   * deploys, so the API reads it out of the `RESPONSE` deadline configured
+   * for this case's jurisdiction and tax type.
+   *
+   * The date is read back out of the row rather than taken from what
+   * `materialise` returned. `materialise` recomputes a date on every call and
+   * returns it, but leaves a row that is already breached or satisfied alone,
+   * so the two can disagree. The row is the record, and the engine has to be
+   * told what the record says.
+   *
+   * Nothing here may fail a transition. The posture of this file is that the
+   * register is not held hostage to the engine: a case that cannot be
+   * coordinated is worked by hand, and an information request that lost its
+   * timer is one an officer chases themselves.
+   */
+  private async informationRequestWindow(
+    movedCase: AssessmentCase,
+    caller: RequestContext,
+  ): Promise<Record<string, string>> {
+    try {
+      const requestedOn = caller.requestedAt.toISOString().slice(0, 10);
+      await this.deadlines.materialise(movedCase, 'INFO_REQUESTED', requestedOn, caller);
+
+      // `due_at` is the last day the taxpayer may answer, so the period runs
+      // to the end of it -- which is how `markBreached` reads the same column,
+      // breaching only once `due_at` is behind the current date. Flowable's
+      // timeDate wants an instant, and the first instant after that last day
+      // is midnight on the day following it. Firing at midnight on `due_at`
+      // itself would take a day off every statutory response period, and a
+      // deadline this platform moves earlier than the statute allows is time
+      // taken from the taxpayer.
+      //
+      // The day is added in SQL rather than by date arithmetic here, because a
+      // date in this domain is a calendar day in the register's terms and not
+      // a point on a JavaScript clock.
+      const rows = await this.sequelize.query<{ expires_at: string | null }>(
+        `SELECT (due_at + INTERVAL '1 day')::date::text AS expires_at
+           FROM tax.tax_assessment_deadline
+          WHERE case_id = :caseId
+            AND deadline_type = 'RESPONSE'
+            AND anchor_event = 'INFO_REQUESTED'
+            AND is_active
+          ORDER BY id DESC
+          LIMIT 1`,
+        { type: QueryTypes.SELECT, replacements: { caseId: movedCase.id } },
+      );
+
+      const expiresAt = rows[0]?.expires_at;
+      if (expiresAt === undefined || expiresAt === null) {
+        // No RESPONSE deadline is configured for this jurisdiction and tax
+        // type. The request is still valid; it just never times out by itself.
+        return {};
+      }
+
+      return { infoResponseDueAt: `${expiresAt}T00:00:00Z` };
+    } catch (error) {
+      this.logger.warn(
+        `Case ${movedCase.caseNumber}: could not supply the response window to the engine; ` +
+          `the information request will not time out by itself. ` +
+          `${error instanceof Error ? error.message : String(error)}`,
+      );
+      return {};
+    }
   }
 
   /**

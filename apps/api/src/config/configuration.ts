@@ -47,6 +47,8 @@ export interface AppConfig {
   readonly defaultCurrency: string;
   /** Whether this process claims scheduled jobs. */
   readonly schedulerEnabled: boolean;
+  /** Whether a passed limitation deadline time-bars the case (ADR-017). */
+  readonly timeBarOnLimitationExpiry: boolean;
   readonly database: DatabaseConfig;
   readonly redis: RedisConfig;
   readonly oidc: OidcConfig;
@@ -113,6 +115,17 @@ export function loadConfiguration(): AppConfig {
      * not spend its event loop sweeping a large register.
      */
     schedulerEnabled: optional('SCHEDULER_ENABLED', 'true') !== 'false',
+    /**
+     * Whether the deadline sweep time-bars a case whose limitation date has
+     * passed (ADR-017).
+     *
+     * Defaults off, the inverse of `schedulerEnabled` above, because
+     * `TIME_BARRED` is terminal and extinguishes the authority's right to
+     * collect. An existing deployment must not start terminating cases
+     * because it took a release, so an authority whose limitation rules are
+     * unconditional turns this on deliberately.
+     */
+    timeBarOnLimitationExpiry: optional('TIME_BAR_ON_LIMITATION_EXPIRY', 'false') === 'true',
     database: {
       host: optional('DB_HOST', 'localhost'),
       port: port('DB_PORT', '5433'),

@@ -257,6 +257,10 @@ function place(nodes: Map<string, Node>, flows: readonly Flow[]): void {
   }
 
   // A boundary event hangs off the bottom edge of the activity it interrupts.
+  // An activity can carry more than one -- the wait for requested information
+  // carries a message and a timer -- and a formula in the host alone gave them
+  // all the same point, so a viewer drew the second on top of the first.
+  const attached = new Map<string, number>();
   for (const node of nodes.values()) {
     if (node.attachedTo === undefined) {
       continue;
@@ -265,8 +269,11 @@ function place(nodes: Map<string, Node>, flows: readonly Flow[]): void {
     if (host === undefined) {
       continue;
     }
+    const index = attached.get(host.id) ?? 0;
+    attached.set(host.id, index + 1);
+
     node.rank = host.rank;
-    node.x = host.x + host.width - node.width - 10;
+    node.x = host.x + host.width - node.width - 10 - index * (node.width + 8);
     node.y = host.y + host.height - node.height / 2;
   }
 }

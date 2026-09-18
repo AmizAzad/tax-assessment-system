@@ -3,6 +3,7 @@ import { CaseStatus, RoleCode } from '@tas/contracts';
 import { Sequelize } from 'sequelize';
 import { ReferenceNumberService } from '../src/forms/reference-number.service';
 import { CaseService } from '../src/tax-assessment/case/case.service';
+import type { DeadlineService } from '../src/tax-assessment/deadline/deadline.service';
 import type { SlaService } from '../src/tax-assessment/deadline/sla.service';
 import type { ProcessOrchestrationService } from '../src/tax-assessment/workflow/process-orchestration.service';
 import type { RequestContext } from '../src/platform/auth/request-context';
@@ -35,11 +36,14 @@ const noopProcesses = {
   onCaseOpened: async () => undefined,
 } as unknown as ProcessOrchestrationService;
 
+const noopDeadlines = {} as DeadlineService;
+
 const cases = new CaseService(
   sequelize,
   new ReferenceNumberService(sequelize),
   noopSla,
   noopProcesses,
+  noopDeadlines,
 );
 
 const supervisor: RequestContext = {
