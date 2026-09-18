@@ -407,7 +407,7 @@ const STYLES = `
   .shot {
     display: block;
     width: 100%;
-    max-height: 170mm;
+    max-height: 230mm;
     object-fit: contain;
     object-position: top left;
     border: 1px solid #999999;

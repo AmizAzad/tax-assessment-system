@@ -22,3 +22,7 @@ apps/bpmn-engine/target/
 /test-results/
 /playwright-report/
 /blob-report/
+
+# Screenshots from the documented e2e run. The PDF embeds them, and
+# `npm run e2e:workflow` regenerates both from the live stack.
+docs/e2e-evidence/screenshots/
