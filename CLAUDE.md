@@ -76,7 +76,9 @@ Commit your own work — do not leave changes uncommitted for the user to stage.
 - Conventional Commits: `feat|fix|refactor|docs|test|chore(scope): subject`, subject in the imperative and under 72 characters. Body only when the "why" is not obvious from the diff. Scope is the workspace or domain (`api`, `web`, `decimal`, `calculation`, `db`).
 - Never commit `.env`, `.dr-backups/`, `playwright-report/`, `test-results/`, or anything else gitignored.
 - Never commit directly to `main` when the change is non-trivial — branch first (`git switch -c <type>/<short-name>`).
-- Pushing and opening a PR are separate decisions. Ask before pushing unless the user already said to.
+- Push the branch to `origin` once its commits are made — `git push -u origin <branch>`. Standing authorisation; do not ask each time. Report the branch and the remote you pushed to.
+- Never push to `main`, and never force-push. Both stay denied in `.claude/settings.json`; a rejected non-fast-forward means rebase on the fresh `origin/main` and push again, never `--force`.
+- Opening a PR is still a separate, explicit ask.
 - Rule-set and golden-fixture changes get their own commit, with the intended liability diff stated in the body.
 
 ## Conventions
