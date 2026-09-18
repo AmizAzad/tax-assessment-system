@@ -386,8 +386,7 @@ export class CaseDetail implements OnInit {
 
       // The assignee travels with the action, so the status change and the
       // assignment are one transaction on the server.
-      const payload =
-        action === 'ASSIGN' ? { assigneeUsername: this.assignee.trim() } : undefined;
+      const payload = action === 'ASSIGN' ? { assigneeUsername: this.assignee.trim() } : undefined;
       const updated = await this.assessment.transition(current.id, action, payload);
       this.assessmentCase.set(updated);
       this.actionNote.set(`Moved to ${updated.statusCode}.`);

@@ -11,3 +11,8 @@ apps/web/out-tsc/
 # shared lines, which makes the renderer template materially harder to read.
 # Angular has its own conventions; formatting is enforced by review here.
 apps/web/src/**/*.html
+
+# Playwright storage-state artifacts, written by the auth setup project.
+# Gitignored (apps/web/e2e/.gitignore), so CI never sees them, but they are
+# JSON on disk and made `format:check` fail on any machine that ran e2e.
+apps/web/e2e/.auth/
