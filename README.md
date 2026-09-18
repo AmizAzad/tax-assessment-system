@@ -497,4 +497,4 @@ Tracked in [plan section 29](plans/V2_tax_assessment_greenfield_plan_11092026.md
 
 ## Licence
 
-Proprietary — IRIS Regtech. All rights reserved.
+Proprietary — Amiz Azad. All rights reserved.
