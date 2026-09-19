@@ -9,6 +9,7 @@ import {
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { CaseStatus, findTransition } from '@tas/contracts';
 import { AssessmentService } from '../../core/assessment.service';
 import { AuthService } from '../../core/auth.service';
 import type { AssessmentCase } from '../../core/domain';
@@ -128,14 +129,17 @@ type TabId =
             }
 
             <!--
-              Writing off abandons the debt. The reason travels on the
+              Cancelling, returning, rejecting and writing off each go against
+              the taxpayer or against work already done, so the transition
+              table marks them as needing a reason and the field appears
+              wherever one of them is on offer. The reason travels on the
               transition payload onto the ledger event, because the file has to
-              say on whose judgement the money stopped being owed.
+              say on whose judgement the case turned.
             -->
-            @if (canWriteOff()) {
+            @if (reasonRequired()) {
               <div class="tas-field" style="flex-direction:row; align-items:center; gap:0.4rem">
-                <label for="write-off-reason">Reason</label>
-                <input id="write-off-reason" [(ngModel)]="writeOffReason" style="width:11rem" />
+                <label for="transition-reason">Reason</label>
+                <input id="transition-reason" [(ngModel)]="reason" style="width:11rem" />
               </div>
             }
 
@@ -148,7 +152,7 @@ type TabId =
                 [disabled]="
                   busy() ||
                   (action.code === 'ASSIGN' && assignee.trim() === '') ||
-                  (action.code === 'WRITE_OFF' && writeOffReason.trim() === '')
+                  (action.requiresReason && reason.trim() === '')
                 "
                 (click)="act(action.code)"
                 [title]="action.hint"
@@ -251,7 +255,7 @@ export class CaseDetail implements OnInit {
 
   /** Who the case is being assigned to. Defaulted, never assumed server-side. */
   assignee = 'assessor';
-  writeOffReason = '';
+  reason = '';
 
   /**
    * Arrow-key navigation across the tabs.
@@ -389,8 +393,25 @@ export class CaseDetail implements OnInit {
         { code: 'START', label: 'Start preparation', hint: 'Assessor only', primary: true },
       ],
     };
-    return status === undefined ? [] : (table[status] ?? []);
+    if (status === undefined) return [];
+
+    // Whether the action needs a justification is the state machine's answer,
+    // read off the same row the server validates against. Restating it here
+    // would give the officer and the server two rules to disagree about. The
+    // status arrives from the API as the enum's own value, which is why the
+    // lookup takes it as one.
+    return (table[status] ?? []).map((action) => ({
+      ...action,
+      requiresReason:
+        findTransition({ from: status as CaseStatus, action: action.code })?.requiresReason ===
+        true,
+    }));
   });
+
+  /** Whether any action on offer needs a reason, so the field is shown. */
+  readonly reasonRequired = computed(() =>
+    this.permittedActions().some((action) => action.requiresReason),
+  );
 
   async ngOnInit(): Promise<void> {
     await this.reload();
@@ -409,11 +430,6 @@ export class CaseDetail implements OnInit {
   /** Whether the current status offers assignment, so the field is shown. */
   canAssign(): boolean {
     return this.permittedActions().some((action) => action.code === 'ASSIGN');
-  }
-
-  /** Whether the current status offers write-off, so the reason field is shown. */
-  canWriteOff(): boolean {
-    return this.permittedActions().some((action) => action.code === 'WRITE_OFF');
   }
 
   async act(action: string): Promise<void> {
@@ -445,8 +461,8 @@ export class CaseDetail implements OnInit {
       const payload =
         action === 'ASSIGN'
           ? { assigneeUsername: this.assignee.trim() }
-          : action === 'WRITE_OFF'
-            ? { reason: this.writeOffReason.trim() }
+          : this.permittedActions().some((a) => a.code === action && a.requiresReason)
+            ? { reason: this.reason.trim() }
             : undefined;
       const updated = await this.assessment.transition(current.id, action, payload);
       this.assessmentCase.set(updated);

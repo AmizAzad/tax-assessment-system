@@ -102,6 +102,39 @@ describe('case state machine structure', () => {
   });
 });
 
+describe('transitions that require a written justification', () => {
+  it('marks exactly the four moves the plan makes conditional on a reason', () => {
+    // Plan section 10.2 rows 3, 11 and 15 say the reason is mandatory, and a
+    // write-off abandons money the authority is owed. Against literal codes,
+    // so adding a fifth row is a deliberate edit to this list.
+    expect(
+      CASE_TRANSITIONS.filter((t) => t.requiresReason).map((t) => [t.from, t.action, t.to]),
+    ).toEqual([
+      ['INITIATED', 'CANCEL', 'CANCELLED'],
+      ['UNDER_REVIEW', 'RETURN', 'REVIEW_RETURNED'],
+      ['PENDING_APPROVAL', 'REJECT', 'REJECTED'],
+      ['AWAITING_TAXPAYER_RESPONSE', 'WRITE_OFF', 'WRITTEN_OFF'],
+    ]);
+  });
+
+  it('asks for no reason to accept a review', () => {
+    expect(
+      findTransition({ from: CaseStatus.UNDER_REVIEW, action: ActionCode.ACCEPT })?.requiresReason,
+    ).toBe(false);
+  });
+
+  it('carries the flag on the transition assertTransition hands back', () => {
+    expect(
+      assertTransition(CaseStatus.PENDING_APPROVAL, ActionCode.REJECT, [RoleCode.APPROVER_L2])
+        .requiresReason,
+    ).toBe(true);
+    expect(
+      assertTransition(CaseStatus.PENDING_APPROVAL, ActionCode.APPROVE, [RoleCode.APPROVER_L2])
+        .requiresReason,
+    ).toBe(false);
+  });
+});
+
 describe('transition lookup', () => {
   it('finds a defined transition', () => {
     const transition = findTransition({
