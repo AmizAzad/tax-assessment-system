@@ -316,10 +316,12 @@ export class CaseDetail implements OnInit {
       string,
       { code: string; label: string; hint: string; primary?: boolean; danger?: boolean }[]
     > = {
-      DATA_READY: [
-        { code: 'ASSIGN', label: 'Assign', hint: 'Supervisor only', primary: true },
-        { code: 'CANCEL', label: 'Cancel', hint: 'Supervisor only' },
-      ],
+      // Cancellation belongs to INITIATED alone, which is what the transition
+      // table and plan section 10.2 row 3 both say. Offering it here produced
+      // a button the server always refused, and with the engine coordinating
+      // a case reaches DATA_READY in about a second, so it was the only
+      // Cancel most officers ever saw.
+      DATA_READY: [{ code: 'ASSIGN', label: 'Assign', hint: 'Supervisor only', primary: true }],
       INITIATED: [{ code: 'CANCEL', label: 'Cancel', hint: 'Supervisor only' }],
       ASSIGNED: [
         { code: 'START', label: 'Start preparation', hint: 'Assessor only', primary: true },

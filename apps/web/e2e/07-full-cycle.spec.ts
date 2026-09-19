@@ -1445,23 +1445,23 @@ test.describe('a documented assessment', () => {
       // has finished loading. Racing it would buy a flaky test rather than
       // coverage; the branch that follows holds a case at INITIATED honestly.
       await workbench.expectStatus('Data ready');
-      await workbench.actAndExpectRefusal('Cancel', /No transition defined from DATA_READY/i);
-      await workbench.expectStatus('Data ready');
+      await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Assign', exact: true })).toBeVisible();
 
       await recorder.capture(page, {
-        id: 'cancel-offered-but-not-defined',
-        title: 'A defect: Cancel is offered from a state it is not permitted from',
+        id: 'cancel-not-offered-once-workable',
+        title: 'The action bar offers only what the case can actually do',
         actor: 'supervisor',
         transition: null,
-        kind: 'refusal',
+        kind: 'observation',
         description:
-          `A supervisor opens case ${opened.caseNumber} on a throwaway year and tries to cancel ` +
-          'it straight away. The button is there and the server refuses it: the transition table ' +
-          'allows CANCEL from INITIATED only, and the process engine had already moved the case ' +
-          'to DATA_READY by the time the screen finished loading. The action bar and the state ' +
-          'machine disagree, and the officer gets the error rather than the courtesy.',
+          `A supervisor opens case ${opened.caseNumber} on a throwaway year and the engine has ` +
+          'already gathered its evidence. Cancellation belongs to a case that never became ' +
+          'workable, so the bar offers Assign and nothing else. The screen used to offer Cancel ' +
+          'here and the server refused it every time, which taught officers to expect errors ' +
+          'from buttons that look available.',
         expected:
-          'The server answers "No transition defined from DATA_READY on action CANCEL", and the case is still Data ready.',
+          'No Cancel button is present on a Data ready case, and Assign is offered instead.',
         statusAfter: await workbench.status(),
       });
     });
