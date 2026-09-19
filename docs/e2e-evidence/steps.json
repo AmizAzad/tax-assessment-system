@@ -10,7 +10,7 @@
     "statusAfter": "Data ready",
     "n": 1,
     "screenshot": "screenshots/01-open-case.png",
-    "at": "2026-09-18T13:20:49.009Z"
+    "at": "2026-09-18T21:25:06.611Z"
   },
   {
     "id": "evidence-retrieved",
@@ -23,7 +23,7 @@
     "statusAfter": "Data ready",
     "n": 2,
     "screenshot": "screenshots/02-evidence-retrieved.png",
-    "at": "2026-09-18T13:20:50.094Z"
+    "at": "2026-09-18T21:25:18.366Z"
   },
   {
     "id": "assign-to-assessor",
@@ -36,7 +36,7 @@
     "statusAfter": "Assigned",
     "n": 3,
     "screenshot": "screenshots/03-assign-to-assessor.png",
-    "at": "2026-09-18T13:20:52.140Z"
+    "at": "2026-09-18T21:25:19.392Z"
   },
   {
     "id": "assessor-register",
@@ -45,11 +45,11 @@
     "transition": null,
     "kind": "observation",
     "description": "The register each officer sees is scoped to the cases they hold. This is the whole point of assigning: a case that does not appear here is one its owner cannot find and therefore will not work.",
-    "expected": "The case number TA202600000036 is listed in the assessor's own register.",
+    "expected": "The case number TA202600000192 is listed in the assessor's own register.",
     "statusAfter": null,
     "n": 4,
     "screenshot": "screenshots/04-assessor-register.png",
-    "at": "2026-09-18T13:20:54.003Z"
+    "at": "2026-09-18T21:25:20.449Z"
   },
   {
     "id": "start-preparation",
@@ -62,7 +62,7 @@
     "statusAfter": "In preparation",
     "n": 5,
     "screenshot": "screenshots/05-start-preparation.png",
-    "at": "2026-09-18T13:20:55.405Z"
+    "at": "2026-09-18T21:25:21.755Z"
   },
   {
     "id": "record-adjustment",
@@ -75,7 +75,7 @@
     "statusAfter": "In preparation",
     "n": 6,
     "screenshot": "screenshots/06-record-adjustment.png",
-    "at": "2026-09-18T13:20:56.737Z"
+    "at": "2026-09-18T21:25:23.286Z"
   },
   {
     "id": "calculate",
@@ -88,7 +88,7 @@
     "statusAfter": "Calculated",
     "n": 7,
     "screenshot": "screenshots/07-calculate.png",
-    "at": "2026-09-18T13:20:58.210Z"
+    "at": "2026-09-18T21:25:24.852Z"
   },
   {
     "id": "submit-for-review",
@@ -101,7 +101,7 @@
     "statusAfter": "Under review",
     "n": 8,
     "screenshot": "screenshots/08-submit-for-review.png",
-    "at": "2026-09-18T13:20:59.238Z"
+    "at": "2026-09-18T21:25:26.001Z"
   },
   {
     "id": "assessor-refused-own-review",
@@ -114,7 +114,7 @@
     "statusAfter": "Under review",
     "n": 9,
     "screenshot": "screenshots/09-assessor-refused-own-review.png",
-    "at": "2026-09-18T13:21:00.263Z"
+    "at": "2026-09-18T21:25:27.371Z"
   },
   {
     "id": "reviewer-returns-for-rework",
@@ -127,7 +127,7 @@
     "statusAfter": "Review returned",
     "n": 10,
     "screenshot": "screenshots/10-reviewer-returns-for-rework.png",
-    "at": "2026-09-18T13:21:01.360Z"
+    "at": "2026-09-18T21:25:28.703Z"
   },
   {
     "id": "resume-preparation",
@@ -140,7 +140,7 @@
     "statusAfter": "In preparation",
     "n": 11,
     "screenshot": "screenshots/11-resume-preparation.png",
-    "at": "2026-09-18T13:21:02.417Z"
+    "at": "2026-09-18T21:25:29.998Z"
   },
   {
     "id": "recalculate",
@@ -153,7 +153,7 @@
     "statusAfter": "Calculated",
     "n": 12,
     "screenshot": "screenshots/12-recalculate.png",
-    "at": "2026-09-18T13:21:02.881Z"
+    "at": "2026-09-18T21:25:30.492Z"
   },
   {
     "id": "resubmit-for-review",
@@ -166,7 +166,7 @@
     "statusAfter": "Under review",
     "n": 13,
     "screenshot": "screenshots/13-resubmit-for-review.png",
-    "at": "2026-09-18T13:21:03.137Z"
+    "at": "2026-09-18T21:25:30.791Z"
   },
   {
     "id": "reviewer-accepts",
@@ -179,7 +179,7 @@
     "statusAfter": "Reviewed",
     "n": 14,
     "screenshot": "screenshots/14-reviewer-accepts.png",
-    "at": "2026-09-18T13:21:04.318Z"
+    "at": "2026-09-18T21:25:37.441Z"
   },
   {
     "id": "route-for-approval",
@@ -192,7 +192,7 @@
     "statusAfter": "Pending approval",
     "n": 15,
     "screenshot": "screenshots/15-route-for-approval.png",
-    "at": "2026-09-18T13:21:05.439Z"
+    "at": "2026-09-18T21:25:38.723Z"
   },
   {
     "id": "assessor-not-offered-approve",
@@ -205,7 +205,7 @@
     "statusAfter": "Pending approval",
     "n": 16,
     "screenshot": "screenshots/16-assessor-not-offered-approve.png",
-    "at": "2026-09-18T13:21:07.022Z"
+    "at": "2026-09-18T21:25:39.850Z"
   },
   {
     "id": "taxpayer-refused-officer-route",
@@ -218,7 +218,7 @@
     "statusAfter": null,
     "n": 17,
     "screenshot": "screenshots/17-taxpayer-refused-officer-route.png",
-    "at": "2026-09-18T13:21:08.696Z"
+    "at": "2026-09-18T21:25:41.460Z"
   },
   {
     "id": "approve",
@@ -231,7 +231,7 @@
     "statusAfter": "Approved",
     "n": 18,
     "screenshot": "screenshots/18-approve.png",
-    "at": "2026-09-18T13:21:09.584Z"
+    "at": "2026-09-18T21:25:42.788Z"
   },
   {
     "id": "notice-refused-before-finalisation",
@@ -244,20 +244,20 @@
     "statusAfter": "Approved",
     "n": 19,
     "screenshot": "screenshots/19-notice-refused-before-finalisation.png",
-    "at": "2026-09-18T13:21:10.641Z"
+    "at": "2026-09-18T21:25:44.041Z"
   },
   {
-    "id": "finalisation-has-no-screen",
-    "title": "A gap: nothing an officer can press finalises a case",
+    "id": "finalise",
+    "title": "The approved figure becomes a determination",
     "actor": "approver",
-    "transition": null,
-    "kind": "observation",
-    "description": "APPROVED to FINALISED is the only move in this journey that no officer can make. The API grants POST /cases/{id}/finalise to approvers and supervisors, the web application calls it from nowhere, and the process definition has no step for it either, so an approved case stops dead. This run called that endpoint directly to reach the stages after it; the transition is deliberately left unrecorded, because no screen drove it and the coverage matrix should say so.",
-    "expected": "The case was APPROVED before the call and reads Finalised after it, with no control on any screen that performs it.",
+    "transition": "APPROVED --FINALISE--> FINALISED",
+    "kind": "transition",
+    "description": "The approver presses Finalise. This is the point of no return: finalising consumes the brought-forward losses the calculation relied on, so those losses are spent against this year and cannot be spent again, and the figures stop being recomputable. It is a second, deliberate act rather than a consequence of approval because approving says the number is right and finalising says the authority is now standing on it.",
+    "expected": "The status reads Finalised, and the action bar empties because a finalised case offers no further lifecycle action.",
     "statusAfter": "Finalised",
     "n": 20,
-    "screenshot": "screenshots/20-finalisation-has-no-screen.png",
-    "at": "2026-09-18T13:21:11.773Z"
+    "screenshot": "screenshots/20-finalise.png",
+    "at": "2026-09-18T21:25:45.504Z"
   },
   {
     "id": "issue-notice",
@@ -270,7 +270,7 @@
     "statusAfter": "Notice generated",
     "n": 21,
     "screenshot": "screenshots/21-issue-notice.png",
-    "at": "2026-09-18T13:21:13.705Z"
+    "at": "2026-09-18T21:25:47.659Z"
   },
   {
     "id": "verify-notice",
@@ -283,7 +283,7 @@
     "statusAfter": "Notice generated",
     "n": 22,
     "screenshot": "screenshots/22-verify-notice.png",
-    "at": "2026-09-18T13:21:14.709Z"
+    "at": "2026-09-18T21:25:49.024Z"
   },
   {
     "id": "serve-notice",
@@ -296,7 +296,7 @@
     "statusAfter": "Awaiting taxpayer response",
     "n": 23,
     "screenshot": "screenshots/23-serve-notice.png",
-    "at": "2026-09-18T13:21:15.990Z"
+    "at": "2026-09-18T21:25:50.448Z"
   },
   {
     "id": "response-window-open",
@@ -309,7 +309,7 @@
     "statusAfter": "Awaiting taxpayer response",
     "n": 24,
     "screenshot": "screenshots/24-response-window-open.png",
-    "at": "2026-09-18T13:21:16.894Z"
+    "at": "2026-09-18T21:25:51.607Z"
   },
   {
     "id": "file-objection",
@@ -322,7 +322,7 @@
     "statusAfter": "Under objection",
     "n": 25,
     "screenshot": "screenshots/25-file-objection.png",
-    "at": "2026-09-18T13:21:18.304Z"
+    "at": "2026-09-18T21:25:53.314Z"
   },
   {
     "id": "admit-objection",
@@ -335,7 +335,7 @@
     "statusAfter": "Under objection",
     "n": 26,
     "screenshot": "screenshots/26-admit-objection.png",
-    "at": "2026-09-18T13:21:19.627Z"
+    "at": "2026-09-18T21:25:55.208Z"
   },
   {
     "id": "deposit-position",
@@ -348,7 +348,7 @@
     "statusAfter": "Under objection",
     "n": 27,
     "screenshot": "screenshots/27-deposit-position.png",
-    "at": "2026-09-18T13:21:21.065Z"
+    "at": "2026-09-18T21:25:56.805Z"
   },
   {
     "id": "panel-opinion",
@@ -361,7 +361,7 @@
     "statusAfter": "Under objection",
     "n": 28,
     "screenshot": "screenshots/28-panel-opinion.png",
-    "at": "2026-09-18T13:21:22.609Z"
+    "at": "2026-09-18T21:25:58.235Z"
   },
   {
     "id": "decide-objection",
@@ -374,7 +374,7 @@
     "statusAfter": "Objection rejected",
     "n": 29,
     "screenshot": "screenshots/29-decide-objection.png",
-    "at": "2026-09-18T13:21:24.117Z"
+    "at": "2026-09-18T21:25:59.951Z"
   },
   {
     "id": "reassessment-refused-on-rejection",
@@ -387,7 +387,7 @@
     "statusAfter": "Objection rejected",
     "n": 30,
     "screenshot": "screenshots/30-reassessment-refused-on-rejection.png",
-    "at": "2026-09-18T13:21:25.186Z"
+    "at": "2026-09-18T21:26:01.450Z"
   },
   {
     "id": "file-appeal",
@@ -400,7 +400,7 @@
     "statusAfter": "Under appeal",
     "n": 31,
     "screenshot": "screenshots/31-file-appeal.png",
-    "at": "2026-09-18T13:21:26.558Z"
+    "at": "2026-09-18T21:26:03.133Z"
   },
   {
     "id": "record-appeal-outcome",
@@ -413,7 +413,7 @@
     "statusAfter": "Appeal set aside",
     "n": 32,
     "screenshot": "screenshots/32-record-appeal-outcome.png",
-    "at": "2026-09-18T13:21:28.052Z"
+    "at": "2026-09-18T21:26:04.875Z"
   },
   {
     "id": "close-case",
@@ -426,7 +426,7 @@
     "statusAfter": "Closed",
     "n": 33,
     "screenshot": "screenshots/33-close-case.png",
-    "at": "2026-09-18T13:21:29.508Z"
+    "at": "2026-09-18T21:26:06.599Z"
   },
   {
     "id": "timeline-ledger",
@@ -439,7 +439,7 @@
     "statusAfter": "Closed",
     "n": 34,
     "screenshot": "screenshots/34-timeline-ledger.png",
-    "at": "2026-09-18T13:21:30.605Z"
+    "at": "2026-09-18T21:26:08.017Z"
   },
   {
     "id": "journey",
@@ -452,20 +452,46 @@
     "statusAfter": "Closed",
     "n": 35,
     "screenshot": "screenshots/35-journey.png",
-    "at": "2026-09-18T13:21:31.833Z"
+    "at": "2026-09-18T21:26:09.509Z"
   },
   {
     "id": "cancel-offered-but-not-defined",
-    "title": "A gap: the only state a case can be cancelled from lasts about a second",
+    "title": "A defect: Cancel is offered from a state it is not permitted from",
     "actor": "supervisor",
     "transition": null,
     "kind": "refusal",
-    "description": "A supervisor opens case TA202600000037 on a throwaway year and tries to cancel it straight away. The button is there and the server refuses it: the transition table allows CANCEL from INITIATED only, and the process engine had already moved the case to DATA_READY by the time the screen finished loading. The action bar and the state machine disagree, and the officer gets the error rather than the courtesy.",
+    "description": "A supervisor opens case TA202600000193 on a throwaway year and tries to cancel it straight away. The button is there and the server refuses it: the transition table allows CANCEL from INITIATED only, and the process engine had already moved the case to DATA_READY by the time the screen finished loading. The action bar and the state machine disagree, and the officer gets the error rather than the courtesy.",
     "expected": "The server answers \"No transition defined from DATA_READY on action CANCEL\", and the case is still Data ready.",
     "statusAfter": "Data ready",
     "n": 36,
     "screenshot": "screenshots/36-cancel-offered-but-not-defined.png",
-    "at": "2026-09-18T13:21:33.816Z"
+    "at": "2026-09-18T21:26:16.137Z"
+  },
+  {
+    "id": "held-at-initiated",
+    "title": "A mandatory source that cannot answer holds the case at the door",
+    "actor": "supervisor",
+    "transition": null,
+    "kind": "observation",
+    "description": "Case TA202600000194 opens against a taxpayer whose account for this period holds euro entries while the case is assessed in sterling. The account source refuses rather than converting, because an exchange rate buried inside evidence retrieval is one nobody would ever find again. It is a mandatory source, so the case does not become workable and sits at Initiated.",
+    "expected": "The retrieval panel reads \"Case not advanced\", lists TAXPAYER_ACCOUNT as a mandatory source that failed on the currency mismatch, and the status is still Initiated.",
+    "statusAfter": "Initiated",
+    "n": 37,
+    "screenshot": "screenshots/37-held-at-initiated.png",
+    "at": "2026-09-18T21:26:17.599Z"
+  },
+  {
+    "id": "cancel-case",
+    "title": "A case opened in error is cancelled outright",
+    "actor": "supervisor",
+    "transition": "INITIATED --CANCEL--> CANCELLED",
+    "kind": "transition",
+    "description": "A supervisor cancels the case. Cancellation is permitted only before any evidence has been gathered on it, which is why the window is so narrow: once the authority has pulled a taxpayer's data it has acted, and the file has to be closed with a reason rather than made to disappear. Cancelling is terminal and leaves the period free for a fresh case.",
+    "expected": "The status reads Cancelled and the action bar is gone entirely.",
+    "statusAfter": "Cancelled",
+    "n": 38,
+    "screenshot": "screenshots/38-cancel-case.png",
+    "at": "2026-09-18T21:26:17.995Z"
   },
   {
     "id": "request-information",
@@ -473,24 +499,271 @@
     "actor": "assessor",
     "transition": "IN_PREPARATION --REQUEST_INFO--> AWAITING_TAXPAYER",
     "kind": "transition",
-    "description": "Case TA202600000038 needs something only the taxpayer holds, so the assessor asks for it and the case stops. The separate state matters for measurement: time spent waiting on a taxpayer is not time the authority took, and a service standard that counted it would be measuring the wrong thing.",
+    "description": "Case TA202600000195 needs something only the taxpayer holds, so the assessor asks for it and the case stops. The separate state matters for measurement: time spent waiting on a taxpayer is not time the authority took, and a service standard that counted it would be measuring the wrong thing.",
     "expected": "The status reads Awaiting taxpayer.",
     "statusAfter": "Awaiting taxpayer",
-    "n": 37,
-    "screenshot": "screenshots/37-request-information.png",
-    "at": "2026-09-18T13:21:36.816Z"
+    "n": 39,
+    "screenshot": "screenshots/39-request-information.png",
+    "at": "2026-09-18T21:26:20.157Z"
   },
   {
-    "id": "respond-refused-to-officer",
-    "title": "A gap: only the taxpayer may answer, and they cannot reach this screen",
-    "actor": "assessor",
+    "id": "respond-refused-to-reviewer",
+    "title": "A reviewer may not record the response",
+    "actor": "reviewer",
     "transition": null,
     "kind": "refusal",
-    "description": "The assessor presses Record a response and the server refuses: RESPOND belongs to the taxpayer alone. But the taxpayer is refused the officer route with a 403, as this run showed earlier, so there is no screen anywhere from which this transition can be driven. The case can only leave this state on the system timeout. The button is offered to an officer who can never use it.",
-    "expected": "A red alert names TA_TAXPAYER as the only permitted actor, and the status has not moved.",
+    "description": "Recording what a taxpayer sent back belongs to the officer who asked for it and to their supervisor. A reviewer checks the finished assessment and has no business entering evidence into it, so the server refuses and names the roles that may.",
+    "expected": "A red alert names the permitted actors, and the status is still Awaiting taxpayer.",
     "statusAfter": "Awaiting taxpayer",
-    "n": 38,
-    "screenshot": "screenshots/38-respond-refused-to-officer.png",
-    "at": "2026-09-18T13:21:37.014Z"
+    "n": 40,
+    "screenshot": "screenshots/40-respond-refused-to-reviewer.png",
+    "at": "2026-09-18T21:26:21.823Z"
+  },
+  {
+    "id": "record-taxpayer-response",
+    "title": "The assessor records what the taxpayer sent back",
+    "actor": "assessor",
+    "transition": "AWAITING_TAXPAYER --RESPOND--> IN_PREPARATION",
+    "kind": "transition",
+    "description": "Replies arrive by post, by email and over a counter, so the response is the taxpayer's act and rarely their keystroke. The assessor who asked for the information records what came back and the case returns to preparation. Who responded is captured on the audit payload rather than inferred from who typed.",
+    "expected": "The status returns to In preparation and the ledger records INFO_RECEIVED.",
+    "statusAfter": "In preparation",
+    "n": 41,
+    "screenshot": "screenshots/41-record-taxpayer-response.png",
+    "at": "2026-09-18T21:26:27.825Z"
+  },
+  {
+    "id": "approver-rejects",
+    "title": "Approval is a decision, so it can go the other way",
+    "actor": "approver",
+    "transition": "PENDING_APPROVAL --REJECT--> REJECTED",
+    "kind": "transition",
+    "description": "Case TA202600000196 reaches an approver who is not satisfied with it. Rejection is a distinct state rather than a quiet bounce back to preparation, because an assessment an approver declined to sign is a different fact from one still being written, and a case rejected twice has to read differently from one approved first time.",
+    "expected": "The status reads Rejected, the bar confirms the move, and the only action now offered is Rework.",
+    "statusAfter": "Rejected",
+    "n": 42,
+    "screenshot": "screenshots/42-approver-rejects.png",
+    "at": "2026-09-18T21:26:36.417Z"
+  },
+  {
+    "id": "rework-after-rejection",
+    "title": "The assessor takes the rejected assessment back",
+    "actor": "assessor",
+    "transition": "REJECTED --START--> IN_PREPARATION",
+    "kind": "transition",
+    "description": "A rejected case returns to the same preparation state a returned review does, and by the same action, because the work is the same work. What distinguishes the two is the history rather than a bespoke state: the ledger holds who rejected it and why, and the next submission is plainly a resubmission.",
+    "expected": "The status reads In preparation and the bar offers the assessor the work again rather than a fresh case.",
+    "statusAfter": "In preparation",
+    "n": 43,
+    "screenshot": "screenshots/43-rework-after-rejection.png",
+    "at": "2026-09-18T21:26:36.893Z"
+  },
+  {
+    "id": "write-off",
+    "title": "The authority gives up on money it is owed",
+    "actor": "supervisor",
+    "transition": "AWAITING_TAXPAYER_RESPONSE --WRITE_OFF--> WRITTEN_OFF",
+    "kind": "transition",
+    "description": "The notice on case TA202600000196 was served and nothing came back, and the company behind it no longer exists. A supervisor abandons the debt. The control is styled as a destructive one and will not fire without a reason typed next to it, because the file has to record on whose judgement the money stopped being owed. Writing off is terminal.",
+    "expected": "The status reads Written off and the newest row of the case history moves it there from Awaiting taxpayer response, carrying the reason the supervisor typed.",
+    "statusAfter": "Written off",
+    "n": 44,
+    "screenshot": "screenshots/44-write-off.png",
+    "at": "2026-09-18T21:26:41.456Z"
+  },
+  {
+    "id": "objection-allowed",
+    "title": "The authority finds against itself",
+    "actor": "objection-officer",
+    "transition": "UNDER_OBJECTION --DECIDE_ALLOWED--> OBJECTION_ALLOWED",
+    "kind": "transition",
+    "description": "The objection officer accepts the taxpayer’s case in full and must say why, as with any other decision. Allowing an objection does not by itself change the figures: it establishes that they are wrong, and the correction is a separate act with its own record, so that what was decided and what was done about it can be read apart.",
+    "expected": "The status reads Objection allowed and the decision is listed with the reasons given for it.",
+    "statusAfter": "Objection allowed",
+    "n": 45,
+    "screenshot": "screenshots/45-objection-allowed.png",
+    "at": "2026-09-18T21:26:53.691Z"
+  },
+  {
+    "id": "reassess-after-objection-allowed",
+    "title": "The correction is opened on the same case",
+    "actor": "supervisor",
+    "transition": "OBJECTION_ALLOWED --REASSESS--> REASSESSMENT_INITIATED",
+    "kind": "transition",
+    "description": "There is one reassessment control and no dropdown asking which kind. Because this case carries a dispute outcome, the platform continues the same case rather than opening a successor, and it records the grounds and whether the reassessment reaches past the limitation date. The move belongs to SYSTEM: it follows from the decision already recorded, not from a fresh judgement by the officer who asked for it.",
+    "expected": "The status reads Reassessment initiated and the reassessment is listed with its shape, trigger and grounds.",
+    "statusAfter": "Reassessment initiated",
+    "n": 46,
+    "screenshot": "screenshots/46-reassess-after-objection-allowed.png",
+    "at": "2026-09-18T21:26:54.403Z"
+  },
+  {
+    "id": "start-reassessment",
+    "title": "The reassessment is picked up like any other work",
+    "actor": "assessor",
+    "transition": "REASSESSMENT_INITIATED --START--> IN_PREPARATION",
+    "kind": "transition",
+    "description": "An assessor takes the reassessment up and it re-enters the ordinary path: prepare, calculate, review, approve. Nothing about a case having been disputed lets it skip the controls, and the corrected figure will be reviewed by somebody other than the officer who produces it exactly as the first one was.",
+    "expected": "The status reads In preparation and the bar offers the ordinary preparation actions, on the same case number as before.",
+    "statusAfter": "In preparation",
+    "n": 47,
+    "screenshot": "screenshots/47-start-reassessment.png",
+    "at": "2026-09-18T21:26:54.917Z"
+  },
+  {
+    "id": "objection-partly-allowed",
+    "title": "Most disputes end somewhere in the middle",
+    "actor": "objection-officer",
+    "transition": "UNDER_OBJECTION --DECIDE_PARTLY_ALLOWED--> OBJECTION_PARTLY_ALLOWED",
+    "kind": "transition",
+    "description": "A partial outcome is its own state rather than a note on an allowance, because what happens next differs: the assessment is neither withdrawn nor left standing, and the appeal rights that follow are calculated against a figure that has moved. Each ground can carry its own outcome, so the taxpayer can see which of their arguments landed.",
+    "expected": "The status reads Objection partly allowed and the decision is listed with its reasons.",
+    "statusAfter": "Objection partly allowed",
+    "n": 48,
+    "screenshot": "screenshots/48-objection-partly-allowed.png",
+    "at": "2026-09-18T21:27:05.298Z"
+  },
+  {
+    "id": "reassess-after-objection-partly-allowed",
+    "title": "A partial outcome reopens the same case",
+    "actor": "supervisor",
+    "transition": "OBJECTION_PARTLY_ALLOWED --REASSESS--> REASSESSMENT_INITIATED",
+    "kind": "transition",
+    "description": "The same control, the same shape, a different starting status. A partly allowed objection leaves an assessment that is wrong in a known way, so the case is reassessed in place and the earlier calculation is superseded rather than edited. Both figures stay on the file, because which number was demanded when is a fact an appeal can turn on.",
+    "expected": "The status reads Reassessment initiated and the reassessment records the grounds for reopening.",
+    "statusAfter": "Reassessment initiated",
+    "n": 49,
+    "screenshot": "screenshots/49-reassess-after-objection-partly-allowed.png",
+    "at": "2026-09-18T21:27:06.100Z"
+  },
+  {
+    "id": "close-after-objection-rejected",
+    "title": "The other end of a rejected objection",
+    "actor": "supervisor",
+    "transition": "OBJECTION_REJECTED --CLOSE--> CLOSED",
+    "kind": "transition",
+    "description": "The objection on case TA202600000199 was rejected and the appeal window ran out without an appeal. The main case in this document took the other road and went to a tribunal; this one simply ends. Closing freezes what was assessed, what was paid and what is left under a reason code the jurisdiction configures, and sets the date the file may be destroyed.",
+    "expected": "The status reads Closed and the closure record shows DISPUTE_EXHAUSTED, the frozen balance and the retention date.",
+    "statusAfter": "Closed",
+    "n": 50,
+    "screenshot": "screenshots/50-close-after-objection-rejected.png",
+    "at": "2026-09-18T21:27:16.106Z"
+  },
+  {
+    "id": "appeal-varied",
+    "title": "The tribunal changes the figure rather than the principle",
+    "actor": "appeals-officer",
+    "transition": "UNDER_APPEAL --RECORD_VARIED--> APPEAL_VARIED",
+    "kind": "transition",
+    "description": "There is no approve control on this panel. An appeal is decided by a forum outside the authority, so the officer transcribes a judgment and must record the reasons given for it. A variation leaves the assessment alive at a different number, which is why the case can be reassessed rather than only closed.",
+    "expected": "The status reads Appeal varied and the appeal is listed as Decided against its forum and reference, with outcome VARIED.",
+    "statusAfter": "Appeal varied",
+    "n": 51,
+    "screenshot": "screenshots/51-appeal-varied.png",
+    "at": "2026-09-18T21:27:25.015Z"
+  },
+  {
+    "id": "reassess-after-appeal-varied",
+    "title": "Giving effect to what the tribunal held",
+    "actor": "supervisor",
+    "transition": "APPEAL_VARIED --REASSESS--> REASSESSMENT_INITIATED",
+    "kind": "transition",
+    "description": "Recording an outcome and giving effect to it are two acts, and the gap between them is what an authority gets asked about. The reassessment is what implements the decision, and its trigger is recorded as an appeal decision rather than as an objection, so a report can tell which forum caused which correction.",
+    "expected": "The status reads Reassessment initiated and the reassessment is triggered by the appeal decision.",
+    "statusAfter": "Reassessment initiated",
+    "n": 52,
+    "screenshot": "screenshots/52-reassess-after-appeal-varied.png",
+    "at": "2026-09-18T21:27:25.797Z"
+  },
+  {
+    "id": "appeal-remanded",
+    "title": "The tribunal declines to decide and sends it back",
+    "actor": "appeals-officer",
+    "transition": "UNDER_APPEAL --RECORD_REMANDED--> APPEAL_REMANDED",
+    "kind": "transition",
+    "description": "A remittal is not a win for either side. The forum has held that the authority did not decide the matter properly and must do it again, so the assessment is neither upheld nor set aside. Modelling it as its own outcome keeps that distinction: a case remitted for reconsideration reads nothing like one the tribunal decided on its merits.",
+    "expected": "The status reads Appeal remanded and the appeal is listed as Decided against its forum and reference, with outcome REMANDED.",
+    "statusAfter": "Appeal remanded",
+    "n": 53,
+    "screenshot": "screenshots/53-appeal-remanded.png",
+    "at": "2026-09-18T21:27:34.006Z"
+  },
+  {
+    "id": "reassess-after-appeal-remanded",
+    "title": "Doing it again, as directed",
+    "actor": "supervisor",
+    "transition": "APPEAL_REMANDED --REASSESS--> REASSESSMENT_INITIATED",
+    "kind": "transition",
+    "description": "The remittal reopens the same case rather than opening a successor, because the period was never finally determined. The grounds recorded here are the direction the tribunal gave, so the reason the authority is looking at this period a second time is on the file rather than in somebody’s memory.",
+    "expected": "The status reads Reassessment initiated and the grounds record the tribunal’s direction.",
+    "statusAfter": "Reassessment initiated",
+    "n": 54,
+    "screenshot": "screenshots/54-reassess-after-appeal-remanded.png",
+    "at": "2026-09-18T21:27:34.724Z"
+  },
+  {
+    "id": "appeal-upheld",
+    "title": "The assessment survives the tribunal",
+    "actor": "appeals-officer",
+    "transition": "UNDER_APPEAL --RECORD_UPHELD--> APPEAL_UPHELD",
+    "kind": "transition",
+    "description": "The forum upholds the assessment, so the figure stands and the money is due. Nothing needs correcting, which is why this outcome leads to payment rather than to a reassessment. The officer records the reasons all the same, because an upheld assessment is the one a taxpayer is most likely to take further.",
+    "expected": "The status reads Appeal upheld and the appeal is listed as Decided against its forum and reference, with outcome UPHELD.",
+    "statusAfter": "Appeal upheld",
+    "n": 55,
+    "screenshot": "screenshots/55-appeal-upheld.png",
+    "at": "2026-09-18T21:27:42.296Z"
+  },
+  {
+    "id": "settle-after-appeal-upheld",
+    "title": "The money arrives after the appeal is lost",
+    "actor": "system (settlement service)",
+    "transition": "APPEAL_UPHELD --PAYMENT_SETTLED--> SETTLED",
+    "kind": "transition",
+    "description": "A supervisor records 7600.0000 received against the taxpayer's account for this period, with its bank reference and value date. Nobody presses a control called settled: the platform compares what the current calculation assessed against what has arrived since, and draws the conclusion itself. A button would let a case be marked paid without the money, which is the most damaging false record a revenue system can hold.",
+    "expected": "The status reads Settled and the screen shows the assessed figure, the amount received since the calculation, and nothing outstanding.",
+    "statusAfter": "Settled",
+    "n": 56,
+    "screenshot": "screenshots/56-settle-after-appeal-upheld.png",
+    "at": "2026-09-18T21:27:43.455Z"
+  },
+  {
+    "id": "close-after-settlement",
+    "title": "A paid case is closed and its position frozen",
+    "actor": "supervisor",
+    "transition": "SETTLED --CLOSE--> CLOSED",
+    "kind": "transition",
+    "description": "Settlement says the money arrived; closure says the authority is finished with the file. They are separate because a settled case can still have work on it, and because the closing balance is snapshotted rather than recomputed on every later read. The file has to keep saying what it said at the time, whatever later payments or corrections do to the account.",
+    "expected": "The status reads Closed and the closure record shows SETTLED_IN_FULL with the frozen assessed, paid and balance figures.",
+    "statusAfter": "Closed",
+    "n": 57,
+    "screenshot": "screenshots/57-close-after-settlement.png",
+    "at": "2026-09-18T21:27:44.331Z"
+  },
+  {
+    "id": "settle-after-notice-served",
+    "title": "The ordinary ending: the taxpayer pays the notice",
+    "actor": "system (settlement service)",
+    "transition": "AWAITING_TAXPAYER_RESPONSE --PAYMENT_SETTLED--> SETTLED",
+    "kind": "transition",
+    "description": "The notice on case TA202600000203 was served and 7600.0000 arrived inside the response window. The payment is recorded against the taxpayer’s account for the tax type and year rather than against the case, because that is what a payment is made against, and a period can carry more than one case over its life. Only payments received after the calculation ran count towards it; the earlier ones were already netted off in the figure being demanded. A residue under one unit of currency is treated as settled, because chasing two pence costs more than the two pence.",
+    "expected": "The status reads Settled and the screen shows the assessed figure, what was received since the calculation, and nothing outstanding.",
+    "statusAfter": "Settled",
+    "n": 58,
+    "screenshot": "screenshots/58-settle-after-notice-served.png",
+    "at": "2026-09-18T21:27:50.129Z"
+  },
+  {
+    "id": "response-window-lapsed",
+    "title": "A deadline passing is an event, not an absence",
+    "actor": "system (deadline sweep)",
+    "transition": "AWAITING_TAXPAYER_RESPONSE --WINDOW_LAPSED--> CLOSED",
+    "kind": "transition",
+    "description": "Nobody objected to the notice on case TA202600000204 and the window ran out. Storing a due date makes nothing happen when it passes, so a sweep closes the window and the case with it. Two things were arranged for this step and are stated plainly: the objection deadline row was dated two days into the past by a direct update, because no screen back-dates a deemed service date, and the sweep was run in a process of its own because it is reachable only from an hourly cron. The transition itself was performed by the shipped scheduler under a SYSTEM identity, with no status written by this test.",
+    "expected": "The status reads Closed and the newest row of the case history is WINDOW_LAPSED, moving the case from Awaiting taxpayer response to Closed under the sweep’s own reason.",
+    "statusAfter": "Closed",
+    "n": 59,
+    "screenshot": "screenshots/59-response-window-lapsed.png",
+    "at": "2026-09-18T21:28:10.898Z"
   }
 ]

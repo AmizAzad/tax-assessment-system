@@ -1,9 +1,10 @@
 import { Inject, Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { CaseStatus, RoleCode } from '@tas/contracts';
+import { CaseStatus, RoleCode, statusesWithAction } from '@tas/contracts';
 import { QueryTypes, Sequelize } from 'sequelize';
 import { randomUUID } from 'node:crypto';
-import { SEQUELIZE } from '../../infrastructure/tokens';
+import { APP_CONFIG, SEQUELIZE } from '../../infrastructure/tokens';
+import type { AppConfig } from '../../config/configuration';
 import type { RequestContext } from '../../platform/auth/request-context';
 import { NotificationService } from '../../platform/notification/notification.service';
 import { JobRegistryService } from '../../platform/scheduling/job-registry.service';
@@ -29,14 +30,21 @@ import { CaseService } from '../case/case.service';
  *
  * - marks a passed deadline BREACHED,
  * - warns before one passes,
- * - and closes the response window when it lapses.
+ * - closes the response window when it lapses,
+ * - and time-bars a case whose limitation period has run.
  *
- * It does **not** decide anything discretionary. A limitation expiry, for
- * instance, is flagged rather than applied: whether a case is genuinely time
- * barred can depend on facts the platform does not hold, such as a suspension
- * agreed with the taxpayer, and a scheduler that time-barred cases on its own
- * would destroy the authority's ability to collect on the basis of an
- * incomplete record.
+ * Time-barring is the one effect here that destroys something. Whether a case
+ * is genuinely time barred can turn on facts the platform does not hold, such
+ * as a limitation period suspended by agreement with the taxpayer or restarted
+ * by an event recorded in another office, and `TIME_BARRED` is terminal, so a
+ * case closed on an incomplete record is a debt the authority can no longer
+ * collect. Those missing facts are now the reason for the bounds rather than a
+ * reason to refuse outright. The sweep time-bars nothing unless
+ * `TIME_BAR_ON_LIMITATION_EXPIRY` is on, it never touches a case under
+ * `legal_hold`, which is the flag an officer sets when the record is known to
+ * be incomplete, and it moves a case only from the statuses the transition
+ * table declares for `LIMITATION_EXPIRED`. ADR-017 records the reversal of the
+ * earlier refusal and what the user was told it costs.
  */
 @Injectable()
 export class DeadlineScheduler implements OnModuleInit {
@@ -47,6 +55,7 @@ export class DeadlineScheduler implements OnModuleInit {
     private readonly cases: CaseService,
     private readonly notifications: NotificationService,
     private readonly jobs: JobRegistryService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -73,13 +82,14 @@ export class DeadlineScheduler implements OnModuleInit {
     await this.jobs.runExclusively('DEADLINE_SWEEP', async () => {
       const warned = await this.warnUpcoming();
       const breached = await this.markBreached();
+      const timeBarred = await this.applyLimitationExpiry();
       const lapsed = await this.closeLapsedResponseWindows();
       const slaBreached = await this.markSlaBreaches();
 
-      if (warned + breached + lapsed + slaBreached === 0) return undefined;
+      if (warned + breached + timeBarred + lapsed + slaBreached === 0) return undefined;
       return (
-        `${warned} warned, ${breached} breached, ${lapsed} windows lapsed, ` +
-        `${slaBreached} SLA breaches`
+        `${warned} warned, ${breached} breached, ${timeBarred} time-barred, ` +
+        `${lapsed} windows lapsed, ${slaBreached} SLA breaches`
       );
     });
   }
@@ -144,12 +154,14 @@ export class DeadlineScheduler implements OnModuleInit {
     );
 
     for (const row of rows) {
-      // Flagged, never applied. Whether a case is genuinely time barred can
-      // turn on facts the platform does not hold.
+      // A time-barred case is the one an officer is later asked to explain,
+      // and this line is where that explanation starts.
       if (row.deadline_type === 'LIMITATION') {
         this.logger.warn(
-          `Case ${row.case_number} passed its limitation date ${row.due_at}. Flagged for review; ` +
-            'the platform does not time-bar a case on its own.',
+          `Case ${row.case_number} passed its limitation date ${row.due_at}. ` +
+            (this.config.timeBarOnLimitationExpiry
+              ? 'This sweep time-bars it unless a bound in ADR-017 holds it back.'
+              : 'Flagged for review; the platform does not time-bar a case on its own.'),
         );
       }
       await this.notify('DEADLINE_BREACHED', row.case_id, {
@@ -159,6 +171,74 @@ export class DeadlineScheduler implements OnModuleInit {
       });
     }
     return rows.length;
+  }
+
+  /**
+   * Apply an expired limitation period (ADR-017).
+   *
+   * Runs after `markBreached`, which is the pass that puts a lapsed limitation
+   * row into the BREACHED state this query selects on.
+   *
+   * Nothing marks a case as already handled, and nothing needs to. The
+   * operation converges by construction. A case this method time-bars sits at
+   * TIME_BARRED, which `statusesWithAction('LIMITATION_EXPIRED')` does not
+   * contain, so it drops out of the candidate set on the next pass, and
+   * `assertTransition` refuses every action out of a terminal status anyway.
+   */
+  private async applyLimitationExpiry(): Promise<number> {
+    if (!this.config.timeBarOnLimitationExpiry) return 0;
+
+    const rows = await this.sequelize.query<{
+      case_id: string;
+      case_number: string;
+      status_code: string;
+      due_at: string;
+    }>(
+      `SELECT DISTINCT d.case_id::text AS case_id, c.case_number, c.status_code,
+              d.due_at::text AS due_at
+         FROM tax.tax_assessment_deadline d
+         JOIN tax.tax_assessment_case c ON c.id = d.case_id
+        WHERE d.deadline_type = 'LIMITATION'
+          AND d.status = 'BREACHED'
+          AND d.is_active
+          AND d.due_at < CURRENT_DATE
+          AND c.is_active
+          AND NOT c.legal_hold
+          AND c.status_code IN (:statuses)`,
+      {
+        type: QueryTypes.SELECT,
+        // Read off the transition table rather than restated here, so the
+        // table stays the single statement of where this is legal.
+        replacements: { statuses: [...statusesWithAction('LIMITATION_EXPIRED')] },
+      },
+    );
+
+    let barred = 0;
+    for (const row of rows) {
+      try {
+        await this.cases.transition(
+          Number(row.case_id),
+          'LIMITATION_EXPIRED',
+          this.systemContext(),
+          {
+            reason: `The limitation date ${row.due_at} passed with the case still ${row.status_code}.`,
+            // The ledger has to carry that the platform applied this, because
+            // no officer can be asked to account for it later.
+            appliedBy: 'PLATFORM',
+            appliedByJob: 'DEADLINE_SWEEP',
+            limitationDate: row.due_at,
+          },
+        );
+        barred += 1;
+      } catch (error) {
+        // One stuck case must not stop the sweep for every other case.
+        this.logger.warn(
+          `Could not time-bar ${row.case_number}: ` +
+            (error instanceof Error ? error.message : String(error)),
+        );
+      }
+    }
+    return barred;
   }
 
   /**
@@ -237,20 +317,26 @@ export class DeadlineScheduler implements OnModuleInit {
     caseId: string,
     variables: Record<string, string>,
   ): Promise<void> {
-    const rows = await this.sequelize.query<{ email: string | null }>(
-      `SELECT tc.email
-         FROM tax.tax_assessment_case c
-         JOIN platform.taxpayer t ON t.id = c.taxpayer_id
-         LEFT JOIN platform.taxpayer_contact tc ON tc.taxpayer_id = t.id AND tc.is_active
-        WHERE c.id = :caseId
-        LIMIT 1`,
-      { type: QueryTypes.SELECT, replacements: { caseId } },
-    );
-
-    const recipient = rows[0]?.email;
-    if (recipient === null || recipient === undefined || recipient === '') return;
-
     try {
+      // A contact is a channel and a value, never a column per channel, so
+      // `tc.email` never existed and this query raised rather than returned a
+      // recipient. The address of record is preferred, because that is the
+      // address statutory service runs against.
+      const rows = await this.sequelize.query<{ email: string | null }>(
+        `SELECT tc.value AS email
+           FROM tax.tax_assessment_case c
+           JOIN platform.taxpayer t ON t.id = c.taxpayer_id
+           LEFT JOIN platform.taxpayer_contact tc
+                  ON tc.taxpayer_id = t.id AND tc.is_active AND tc.channel = 'EMAIL'
+          WHERE c.id = :caseId
+          ORDER BY tc.is_service_address DESC
+          LIMIT 1`,
+        { type: QueryTypes.SELECT, replacements: { caseId } },
+      );
+
+      const recipient = rows[0]?.email;
+      if (recipient === null || recipient === undefined || recipient === '') return;
+
       await this.notifications.send({
         typeCode,
         recipient,
@@ -260,7 +346,11 @@ export class DeadlineScheduler implements OnModuleInit {
       });
     } catch (error) {
       // The deadline state is the record that matters; a failed email must not
-      // roll it back or stop the rest of the sweep.
+      // roll it back or stop the rest of the sweep. The guard covers the
+      // recipient lookup too, because that is what actually failed: the wrong
+      // column name raised out of `markBreached` and took the limitation,
+      // response-window and SLA passes down with it, none of which notify
+      // anybody.
       this.logger.warn(
         `Deadline notification ${typeCode} for case ${caseId} failed: ` +
           (error instanceof Error ? error.message : String(error)),
