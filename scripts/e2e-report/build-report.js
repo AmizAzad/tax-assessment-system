@@ -31,6 +31,26 @@ const CONTRACTS = path.join(ROOT, 'packages', 'contracts', 'dist', 'src', 'index
 const DEFAULT_INPUT = path.join('docs', 'e2e-evidence');
 const DEFAULT_OUT = 'tax_assessment_system_workflow.pdf';
 
+/**
+ * A screenshot is drawn at the page width, so a tall one is scaled down until
+ * it fits `SHOT_MAX_HEIGHT_MM`. Full-page captures of long screens fall so far
+ * below their natural size that their 14px interface text prints under a
+ * millimetre tall, and a page nobody can read is a failed page. Below
+ * `MIN_SHOT_SCALE` a capture is sliced into stacked panels instead of shrunk.
+ * 0.8 is a judgement call: the tallest capture this run kept whole renders at
+ * 0.81, and the shortest it slices at 0.77.
+ */
+const PAGE_CONTENT_WIDTH_MM = 186; // A4 width less the side margins `renderPdf` sets.
+const SHOT_MAX_HEIGHT_MM = 230;
+const MIN_SHOT_SCALE = 0.8;
+
+/**
+ * How much of the capture consecutive panels repeat. At page width 12mm is 83
+ * source pixels, four lines of interface text, so a line one panel cuts is
+ * readable whole in the next.
+ */
+const PANEL_OVERLAP_MM = 12;
+
 const ENVIRONMENT = [
   ['API', 'http://localhost:3000'],
   ['Web', 'http://localhost:4200'],
@@ -190,6 +210,45 @@ function formatTimestamp(value) {
   return Number.isNaN(date.getTime()) ? String(value ?? 'unknown') : date.toISOString();
 }
 
+/** A PNG carries its size in the IHDR chunk, as two big-endian uint32. */
+function readPngSize(buffer) {
+  if (buffer.length < 24 || buffer.toString('ascii', 12, 16) !== 'IHDR') return null;
+
+  const width = buffer.readUInt32BE(16);
+  return width === 0 ? null : { width, height: buffer.readUInt32BE(20) };
+}
+
+/**
+ * Stacked windows onto one image, each drawn at the page width so its text is
+ * the size it is in every other screenshot, and each reading on from the one
+ * above. `background-size: 100%` fixes the scale, `aspect-ratio` sets how much
+ * of the image a window shows, and a percentage `background-position` slides
+ * the window down in even steps, 0% at the top of the image and 100% at its
+ * bottom. Only a capture past the threshold gets here, which is more than one
+ * panel's worth, so there are always at least two steps to slide between.
+ */
+function renderPanels(source, heightMm) {
+  const count = Math.ceil((heightMm - PANEL_OVERLAP_MM) / (SHOT_MAX_HEIGHT_MM - PANEL_OVERLAP_MM));
+  const panelMm = (heightMm + (count - 1) * PANEL_OVERLAP_MM) / count;
+
+  return Array.from({ length: count }, (_, index) => {
+    const style =
+      `aspect-ratio: ${PAGE_CONTENT_WIDTH_MM} / ${panelMm.toFixed(3)};` +
+      `background-image: url(${source});` +
+      `background-position: 0 ${((index / (count - 1)) * 100).toFixed(4)}%`;
+
+    return `
+      <figure class="panel">
+        <figcaption>
+          Part ${index + 1} of ${count} of one tall screenshot, shown at full size rather than
+          shrunk to a single page. Consecutive parts overlap by ${PANEL_OVERLAP_MM}mm, so nothing
+          falls between them.
+        </figcaption>
+        <div class="window" style="${style}"></div>
+      </figure>`;
+  }).join('');
+}
+
 /**
  * A missing screenshot becomes a visible note rather than a thrown error: the
  * rest of the run is still evidence, and a gap a reader can see beats a
@@ -207,10 +266,16 @@ function embedScreenshot(inputDir, relative) {
     };
   }
 
-  const base64 = fs.readFileSync(absolute).toString('base64');
-  return {
-    html: `<img class="shot" src="data:image/png;base64,${base64}" alt="${escapeHtml(relative)}" />`,
-  };
+  const buffer = fs.readFileSync(absolute);
+  const source = `data:image/png;base64,${buffer.toString('base64')}`;
+  const size = readPngSize(buffer);
+  const heightMm = size ? (PAGE_CONTENT_WIDTH_MM * size.height) / size.width : 0;
+
+  if (heightMm > SHOT_MAX_HEIGHT_MM / MIN_SHOT_SCALE) {
+    return { html: renderPanels(source, heightMm), sliced: true };
+  }
+
+  return { html: `<img class="shot" src="${source}" alt="${escapeHtml(relative)}" />` };
 }
 
 function renderTitlePage(steps, generatedAt) {
@@ -322,13 +387,15 @@ function renderStep(step, inputDir) {
     .map(([name, value]) => `<span><b>${escapeHtml(name)}:</b> ${escapeHtml(value)}</span>`)
     .join('<span class="sep">|</span>');
 
+  const shot = embedScreenshot(inputDir, step.screenshot);
+
   return `
-    <section class="step">
+    <section class="step${shot.sliced ? ' sliced' : ''}">
       <h2>Step ${escapeHtml(step.n)}. ${escapeHtml(step.title)}</h2>
       <p class="meta">${meta}</p>
       <p class="description">${escapeHtml(step.description)}</p>
       <p class="proves"><b>What this proves.</b> ${escapeHtml(step.expected)}</p>
-      ${embedScreenshot(inputDir, step.screenshot).html}
+      ${shot.html}
     </section>`;
 }
 
@@ -407,10 +474,20 @@ const STYLES = `
   .shot {
     display: block;
     width: 100%;
-    max-height: 230mm;
+    max-height: ${SHOT_MAX_HEIGHT_MM}mm;
     object-fit: contain;
     object-position: top left;
     border: 1px solid #999999;
+  }
+  .step.sliced { break-inside: auto; }
+  .panel { break-inside: avoid; margin: 0 0 8pt; }
+  .panel figcaption { font-size: 8.5pt; color: #444444; margin-bottom: 3pt; }
+  .panel .window {
+    width: 100%;
+    border: 1px solid #999999;
+    background-repeat: no-repeat;
+    background-size: 100% auto;
+    background-origin: border-box;
   }
 `;
 
