@@ -341,16 +341,8 @@ async function closeCase(
   await cast.supervisor.getByRole('button', { name: 'Close case' }).click();
 }
 
-/**
- * Put an objection deadline in the past.
- *
- * Arrangement, and the only part of the window-lapsed branch that is. Nothing
- * an officer can reach sets this date: it is derived from the deemed service
- * date, and service is always recorded as of now. So the row is edited
- * directly, which changes a fact the sweep reacts to and changes no status.
- * The lapse itself is still performed by the shipped sweep.
- */
-async function backdateTheObjectionDeadline(caseId: number): Promise<number> {
+/** One connection, opened for an arrangement and closed after it. */
+async function withDatabase<T>(work: (db: Sequelize) => Promise<T>): Promise<T> {
   const db = new Sequelize(
     process.env['DB_NAME'] ?? 'tax_assessment',
     process.env['DB_USER'] ?? 'tas',
@@ -363,6 +355,23 @@ async function backdateTheObjectionDeadline(caseId: number): Promise<number> {
     },
   );
   try {
+    return await work(db);
+  } finally {
+    await db.close();
+  }
+}
+
+/**
+ * Put an objection deadline in the past.
+ *
+ * Arrangement, and the only part of the window-lapsed branch that is. Nothing
+ * an officer can reach sets this date: it is derived from the deemed service
+ * date, and service is always recorded as of now. So the row is edited
+ * directly, which changes a fact the sweep reacts to and changes no status.
+ * The lapse itself is still performed by the shipped sweep.
+ */
+async function backdateTheObjectionDeadline(caseId: number): Promise<number> {
+  return withDatabase(async (db) => {
     const [, affected] = await db.query(
       `UPDATE tax.tax_assessment_deadline
           SET due_at = CURRENT_DATE - INTERVAL '2 days', updated_at = CURRENT_TIMESTAMP
@@ -370,9 +379,93 @@ async function backdateTheObjectionDeadline(caseId: number): Promise<number> {
       { type: QueryTypes.UPDATE, replacements: { caseId } },
     );
     return affected ?? 0;
-  } finally {
-    await db.close();
-  }
+  });
+}
+
+/** The GB CIT response window, as `tax.tax_deadline_config` states it. */
+interface ResponseWindow {
+  readonly offsetValue: number;
+  readonly offsetUnit: string;
+  readonly calendarRule: string;
+}
+
+/**
+ * A response window that was already spent when it opened.
+ *
+ * The engine fixes the boundary timer's instant when the information request
+ * is made, from the `RESPONSE` deadline the API materialises at that moment,
+ * so a row edited afterwards moves nothing. The configuration has to be wrong
+ * for the length of one click, and is put back in the same step.
+ *
+ * `CALENDAR_DAYS` rather than the shipped `NEXT_BUSINESS_DAY`, because rolling
+ * a negative offset forward to the next working day can land the due date on
+ * today, and the timer fires at the midnight that ends the due date. Ten days
+ * back lands the instant in the past whatever day of the week the run happens
+ * on.
+ */
+const AN_ELAPSED_RESPONSE_WINDOW: ResponseWindow = {
+  offsetValue: -10,
+  offsetUnit: 'DAYS',
+  calendarRule: 'CALENDAR_DAYS',
+};
+
+async function readTheResponseWindow(): Promise<ResponseWindow> {
+  return withDatabase(async (db) => {
+    const rows = await db.query<ResponseWindow>(
+      `SELECT offset_value AS "offsetValue", offset_unit AS "offsetUnit",
+              calendar_rule AS "calendarRule"
+         FROM tax.tax_deadline_config
+        WHERE jurisdiction_code = 'GB' AND tax_type_code = 'CIT'
+          AND deadline_type = 'RESPONSE' AND is_active`,
+      { type: QueryTypes.SELECT },
+    );
+    expect(rows.length, 'GB CIT configures exactly one response window').toBe(1);
+    return rows[0]!;
+  });
+}
+
+async function writeTheResponseWindow(window: ResponseWindow): Promise<void> {
+  await withDatabase(async (db) => {
+    await db.query(
+      `UPDATE tax.tax_deadline_config
+          SET offset_value = :offsetValue, offset_unit = :offsetUnit,
+              calendar_rule = :calendarRule, updated_at = CURRENT_TIMESTAMP
+        WHERE jurisdiction_code = 'GB' AND tax_type_code = 'CIT'
+          AND deadline_type = 'RESPONSE' AND is_active`,
+      { type: QueryTypes.UPDATE, replacements: { ...window } },
+    );
+  });
+}
+
+/**
+ * Record a limitation date that has already passed, against cases that are open.
+ *
+ * Arrangement, and it has to be an insert. The sweep acts on a materialised
+ * `LIMITATION` deadline row rather than on the case's limitation date, and no
+ * jurisdiction shipped today configures a `LIMITATION` deadline type, so there
+ * is no configuration for `DeadlineService.materialise` to work from and no
+ * screen that writes one. The row goes in `OPEN` and dated two days back, which
+ * is what the sweep's ordinary `markBreached` pass reacts to; the time bar is
+ * then applied by the sweep from the breached row, not by this function.
+ */
+async function recordALapsedLimitationDeadline(caseIds: readonly number[]): Promise<number> {
+  return withDatabase(async (db) => {
+    let written = 0;
+    for (const caseId of caseIds) {
+      const rows = await db.query<{ id: string }>(
+        `INSERT INTO tax.tax_assessment_deadline
+                (case_id, deadline_type, anchor_event, anchor_at, due_at, status,
+                 created_at, updated_at, is_active)
+         VALUES (:caseId, 'LIMITATION', 'PERIOD_END', CURRENT_DATE - INTERVAL '5 years',
+                 CURRENT_DATE - INTERVAL '2 days', 'OPEN',
+                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true)
+         RETURNING id::text AS id`,
+        { type: QueryTypes.SELECT, replacements: { caseId } },
+      );
+      written += rows.length;
+    }
+    return written;
+  });
 }
 
 /**
@@ -419,7 +512,13 @@ NestFactory.createApplicationContext(WorkerModule, { logger: ['error'] })
   });
 `;
 
-function runTheDeadlineSweep(): string {
+/**
+ * `settings` reach the child and nothing else. `TIME_BAR_ON_LIMITATION_EXPIRY`
+ * is off by default and stays off for the deployment, the API and every other
+ * step: an authority turns it on deliberately, and so does one step of this
+ * run.
+ */
+function runTheDeadlineSweep(settings: Readonly<Record<string, string>> = {}): string {
   const built = join(process.cwd(), 'apps', 'worker', 'dist', 'worker', 'src', 'worker.module.js');
   if (!existsSync(built)) {
     throw new Error(
@@ -431,6 +530,7 @@ function runTheDeadlineSweep(): string {
     cwd: process.cwd(),
     encoding: 'utf8',
     timeout: 180_000,
+    env: { ...process.env, ...settings },
   });
 }
 
@@ -441,9 +541,9 @@ test.describe('a documented assessment', () => {
   });
 
   test('runs from initiation to closure, and says what it could not drive', async ({ as }) => {
-    // Twelve cases, nine officers, four disputes and a deadline sweep. The
-    // suite-wide 60 second budget is for a single stage, not for a whole
-    // register's worth of case histories.
+    // Fifteen cases, nine officers, four disputes, two deadline sweeps and an
+    // engine timer. The suite-wide 60 second budget is for a single stage, not
+    // for a whole register's worth of case histories.
     test.setTimeout(3_600_000);
 
     let caseUrl = '';
@@ -1445,23 +1545,23 @@ test.describe('a documented assessment', () => {
       // has finished loading. Racing it would buy a flaky test rather than
       // coverage; the branch that follows holds a case at INITIATED honestly.
       await workbench.expectStatus('Data ready');
-      await workbench.actAndExpectRefusal('Cancel', /No transition defined from DATA_READY/i);
-      await workbench.expectStatus('Data ready');
+      await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Assign', exact: true })).toBeVisible();
 
       await recorder.capture(page, {
-        id: 'cancel-offered-but-not-defined',
-        title: 'A defect: Cancel is offered from a state it is not permitted from',
+        id: 'cancel-not-offered-once-workable',
+        title: 'The action bar offers only what the case can actually do',
         actor: 'supervisor',
         transition: null,
-        kind: 'refusal',
+        kind: 'observation',
         description:
-          `A supervisor opens case ${opened.caseNumber} on a throwaway year and tries to cancel ` +
-          'it straight away. The button is there and the server refuses it: the transition table ' +
-          'allows CANCEL from INITIATED only, and the process engine had already moved the case ' +
-          'to DATA_READY by the time the screen finished loading. The action bar and the state ' +
-          'machine disagree, and the officer gets the error rather than the courtesy.',
+          `A supervisor opens case ${opened.caseNumber} on a throwaway year and the engine has ` +
+          'already gathered its evidence. Cancellation belongs to a case that never became ' +
+          'workable, so the bar offers Assign and nothing else. The screen used to offer Cancel ' +
+          'here and the server refused it every time, which taught officers to expect errors ' +
+          'from buttons that look available.',
         expected:
-          'The server answers "No transition defined from DATA_READY on action CANCEL", and the case is still Data ready.',
+          'No Cancel button is present on a Data ready case, and Assign is offered instead.',
         statusAfter: await workbench.status(),
       });
     });
@@ -2164,6 +2264,134 @@ test.describe('a documented assessment', () => {
         expected:
           'The status reads Closed and the newest row of the case history is WINDOW_LAPSED, moving the case from Awaiting taxpayer response to Closed under the sweep’s own reason.',
         statusAfter: await supervisor.status(),
+      });
+    });
+
+    await test.step('an information request nobody answers times out on its own', async () => {
+      const unanswered = await prepareCase(cast);
+
+      const window = await readTheResponseWindow();
+      try {
+        await writeTheResponseWindow(AN_ELAPSED_RESPONSE_WINDOW);
+        const assessor = new Workbench(cast.assessor);
+        await assessor.act('Request information');
+        await assessor.expectStatus('Awaiting taxpayer');
+      } finally {
+        await writeTheResponseWindow(window);
+      }
+      expect(await readTheResponseWindow(), 'the response window was put back').toEqual(window);
+
+      await expect
+        .poll(
+          async () =>
+            (await apiGet<{ statusCode: string }>('supervisor', `/cases/${unanswered.id}`))
+              .statusCode,
+          { message: 'the engine timer returned the case to the assessor', timeout: 120_000 },
+        )
+        .toBe('IN_PREPARATION');
+
+      const supervisor = await workbenchFor(cast, 'supervisor', unanswered);
+      await supervisor.expectStatus('In preparation');
+      await supervisor.tab('Timeline');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'information-request-timed-out',
+        title: 'Silence returns the case to the officer who asked',
+        actor: 'system (the engine’s boundary timer)',
+        transition: 'AWAITING_TAXPAYER --TIMEOUT--> IN_PREPARATION',
+        kind: 'transition',
+        description:
+          `The assessor asked the taxpayer for information on case ${unanswered.caseNumber} and ` +
+          'nothing came back. One thing was arranged and is stated plainly: the GB CIT response ' +
+          'window is thirty days, which no run can sit through, so its configuration row was set ' +
+          'to a period already ten days spent for the moment the request was made and put ' +
+          'straight back afterwards, because the engine fixes the timer’s date when the request ' +
+          'is made and editing a row later moves nothing. The wait, the timer and the transition ' +
+          'are the shipped ones: the process definition parks the case on a receive task and the ' +
+          'engine calls the API under its own service account when the window runs out.',
+        expected:
+          'The status reads In preparation and the newest history row is INFO_TIMEOUT, moving the case from Awaiting taxpayer back to In preparation.',
+        statusAfter: await supervisor.status(),
+      });
+    });
+
+    await test.step('a limitation period runs out on two open cases', async () => {
+      const beingPrepared = await prepareCase(cast);
+
+      // The same arrangement the cancelled branch uses, for the same reason: a
+      // euro entry on the period makes the mandatory account source refuse a
+      // sterling case, which is what holds a case at Initiated long enough for
+      // anything to be proved from there.
+      const year = await freeAssessmentYear();
+      await apiPost('supervisor', '/taxpayers/1/account', {
+        entryType: 'ADVANCE_PAYMENT',
+        taxTypeCode: 'CIT',
+        assessmentYear: year,
+        amount: '250.00',
+        currencyCode: 'EUR',
+        valueDate: today(),
+        sourceReference: `E2E-EUR-${year}`,
+        narrative: 'Seeded in euro so the account source cannot answer a sterling case.',
+      });
+
+      const neverWorked = caseFrom(await Workbench.openCase(cast.supervisor, { year }));
+      const atTheDoor = new Workbench(cast.supervisor);
+      await atTheDoor.retrieveEvidence();
+      await atTheDoor.expectStatus('Initiated');
+
+      const rows = await recordALapsedLimitationDeadline([neverWorked.id, beingPrepared.id]);
+      expect(rows, 'both cases carry a limitation date that has passed').toBe(2);
+
+      const output = runTheDeadlineSweep({ TIME_BAR_ON_LIMITATION_EXPIRY: 'true' });
+      expect(output, 'the sweep ran to completion').toContain('SWEEP_COMPLETED');
+
+      const doorway = await workbenchFor(cast, 'supervisor', neverWorked);
+      await doorway.expectStatus('Time barred');
+      await doorway.tab('Timeline');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'limitation-expired-at-initiation',
+        title: 'A limitation period runs out on a case nobody ever worked',
+        actor: 'system (deadline sweep)',
+        transition: 'INITIATED --LIMITATION_EXPIRED--> TIME_BARRED',
+        kind: 'transition',
+        description:
+          `Case ${neverWorked.caseNumber} never became workable and sat at Initiated until its ` +
+          'limitation period ran out. Three things were arranged and are stated plainly: the ' +
+          'period was seeded with a euro account entry so the mandatory account source could not ' +
+          'answer a sterling case, a LIMITATION deadline row dated two days back was inserted ' +
+          'directly because no jurisdiction configures that deadline type and no screen writes ' +
+          'one, and the sweep was run in a process of its own with TIME_BAR_ON_LIMITATION_EXPIRY ' +
+          'turned on for that process alone, because time-barring is off by default and ' +
+          'TIME_BARRED is terminal. The sweep marked the row breached on its ordinary pass and ' +
+          'then applied the time bar itself, under a SYSTEM identity, with no status written by ' +
+          'this test.',
+        expected:
+          'The status reads Time barred and the newest history row is DEADLINE_BREACHED, moving the case from Initiated to Time barred with DEADLINE_SWEEP named as what applied it.',
+        statusAfter: await doorway.status(),
+      });
+
+      const prepared = await workbenchFor(cast, 'supervisor', beingPrepared);
+      await prepared.expectStatus('Time barred');
+      await prepared.tab('Timeline');
+
+      await recorder.capture(cast.supervisor, {
+        id: 'limitation-expired-in-preparation',
+        title: 'The same sweep stops an assessment already under way',
+        actor: 'system (deadline sweep)',
+        transition: 'IN_PREPARATION --LIMITATION_EXPIRED--> TIME_BARRED',
+        kind: 'transition',
+        description:
+          `Case ${beingPrepared.caseNumber} was assigned, started and in preparation when the ` +
+          'same sweep reached it, so an assessment an officer was in the middle of is ended by ' +
+          'the calendar. Its limitation deadline row was inserted the same way and in the same ' +
+          'state as the case above, and both were time-barred by the one sweep. The sweep takes ' +
+          'the statuses it may move from out of the transition table rather than restating them, ' +
+          'which is why Initiated and In preparation are the two it acts on and why a case under ' +
+          'objection or already finalised is never a candidate.',
+        expected:
+          'The status reads Time barred and the newest history row is DEADLINE_BREACHED, moving the case from In preparation to Time barred.',
+        statusAfter: await prepared.status(),
       });
     });
   });
