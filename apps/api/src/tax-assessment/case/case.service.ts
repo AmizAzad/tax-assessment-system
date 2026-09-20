@@ -234,6 +234,25 @@ export class CaseService {
     // which say exactly what was wrong.
     const transition = assertTransition(current.statusCode, action, caller.roleCodes);
 
+    /**
+     * The reason is a precondition of the move, not a courtesy on the event.
+     *
+     * Which moves need one is the transition table's business, so this reads
+     * the flag off the row rather than listing the actions again. The screen
+     * refuses to submit without a reason; before this check the server took
+     * the same call from curl and wrote a cancellation nobody had to justify.
+     */
+    if (transition.requiresReason) {
+      const reason = payload['reason'];
+      if (typeof reason !== 'string' || reason.trim() === '') {
+        throw new BadRequestException(
+          `Action ${action} requires a reason. Moving this case from ${current.statusCode} to ` +
+            `${transition.to} is recorded against the officer who did it, and the ledger has to ` +
+            `carry why. Blank space is not a reason.`,
+        );
+      }
+    }
+
     await this.assertSegregationOfDuties(caseId, transition.to, caller);
 
     const moved = await this.sequelize.transaction(async (t) => {

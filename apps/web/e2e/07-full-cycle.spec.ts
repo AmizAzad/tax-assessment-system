@@ -797,6 +797,16 @@ test.describe('a documented assessment', () => {
       await page.goto(caseUrl);
       const workbench = new Workbench(page);
 
+      await expect(
+        page.getByRole('button', { name: 'Return for rework', exact: true }),
+        'the return will not fire until the reviewer has said what is wrong',
+      ).toBeDisabled();
+      await page
+        .locator('#transition-reason')
+        .fill(
+          'The disallowed entertaining is not evidenced. Attach the invoices before resubmitting.',
+        );
+
       await workbench.act('Return for rework');
       await workbench.expectStatus('Review returned');
 
@@ -810,8 +820,10 @@ test.describe('a documented assessment', () => {
           'A review that can only say yes is not a review. The reviewer returns the case to the ' +
           'assessor, and the return is recorded as its own event rather than as a silent ' +
           'reversal, so that a case reworked three times reads differently from one accepted ' +
-          'first time.',
-        expected: 'The status reads Review returned and the case is back with the assessor.',
+          'first time. The button stays dead until the reviewer types what is wrong, because a ' +
+          'return the assessor cannot act on is a round trip for nothing.',
+        expected:
+          'Return for rework is disabled while the reason is empty; once it is given the status reads Review returned and the case is back with the assessor.',
         statusAfter: await workbench.status(),
       });
     });
@@ -1617,6 +1629,14 @@ test.describe('a documented assessment', () => {
         statusAfter: await workbench.status(),
       });
 
+      await expect(
+        cast.supervisor.getByRole('button', { name: 'Cancel', exact: true }),
+        'the cancellation will not fire until the supervisor has said why',
+      ).toBeDisabled();
+      await cast.supervisor
+        .locator('#transition-reason')
+        .fill('Opened in error: the taxpayer has no sterling obligation for this period.');
+
       await workbench.act('Cancel');
       await workbench.expectStatus('Cancelled');
 
@@ -1631,8 +1651,9 @@ test.describe('a documented assessment', () => {
           'been gathered on it, which is why the window is so narrow: once the authority has ' +
           "pulled a taxpayer's data it has acted, and the file has to be closed with a reason " +
           'rather than made to disappear. Cancelling is terminal and leaves the period free for ' +
-          'a fresh case.',
-        expected: 'The status reads Cancelled and the action bar is gone entirely.',
+          'a fresh case. The control will not fire without a reason typed next to it.',
+        expected:
+          'Cancel is disabled while the reason is empty; once it is given the status reads Cancelled and the action bar is gone entirely.',
         statusAfter: await workbench.status(),
       });
     });
@@ -1710,6 +1731,14 @@ test.describe('a documented assessment', () => {
       await routeForApproval(cast, rejected, { adjust: true });
 
       const approver = await workbenchFor(cast, 'approver', rejected);
+      await expect(
+        cast.approver.getByRole('button', { name: 'Reject', exact: true }),
+        'the rejection will not fire until the approver has said why they will not sign',
+      ).toBeDisabled();
+      await cast.approver
+        .locator('#transition-reason')
+        .fill('The transfer pricing adjustment cites no comparables and no statutory reference.');
+
       await approver.act('Reject');
       await approver.expectStatus('Rejected');
 
@@ -1724,9 +1753,10 @@ test.describe('a documented assessment', () => {
           'Rejection is a distinct state rather than a quiet bounce back to preparation, because ' +
           'an assessment an approver declined to sign is a different fact from one still being ' +
           'written, and a case rejected twice has to read differently from one approved first ' +
-          'time.',
+          'time. The approver has to say why: the assessor who picks the case back up is ' +
+          'entitled to know what to change.',
         expected:
-          'The status reads Rejected, the bar confirms the move, and the only action now offered is Rework.',
+          'Reject is disabled while the reason is empty; once it is given the status reads Rejected and the only action now offered is Rework.',
         statusAfter: await approver.status(),
       });
 
@@ -1757,8 +1787,12 @@ test.describe('a documented assessment', () => {
 
       const supervisor = await workbenchFor(cast, 'supervisor', rejected);
       await supervisor.expectStatus('Awaiting taxpayer response');
+      await expect(
+        cast.supervisor.getByRole('button', { name: 'Write off', exact: true }),
+        'the write-off will not fire until the supervisor has said on whose judgement',
+      ).toBeDisabled();
       await cast.supervisor
-        .locator('#write-off-reason')
+        .locator('#transition-reason')
         .fill('Company dissolved; no assets and no successor to pursue.');
       await supervisor.act('Write off');
       await supervisor.expectStatus('Written off');

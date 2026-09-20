@@ -20,6 +20,21 @@ export interface CaseTransition {
   /** Roles permitted to perform this transition. SYSTEM means a service task. */
   readonly actors: readonly RoleCode[];
   readonly event: CaseEventType;
+  /**
+   * Whether the actor must say why, in writing, for the move to be permitted.
+   *
+   * Plan section 10.2 marks the reason mandatory on rows 3, 11 and 15, and a
+   * write-off abandons money the authority is owed. Each of those four is a
+   * decision that goes against the taxpayer or against the work already done,
+   * and an auditor reading the ledger has to find the justification beside the
+   * status change rather than in somebody's memory.
+   *
+   * It lives on the row because the alternative is an `if` per action in the
+   * service, which is how a rule belonging to this table drifted from it once
+   * already. The fifth action to need a reason is a flag here and nothing
+   * else.
+   */
+  readonly requiresReason: boolean;
 }
 
 const T = (
@@ -28,7 +43,8 @@ const T = (
   to: CaseStatus,
   actors: readonly RoleCode[],
   event: CaseEventType,
-): CaseTransition => Object.freeze({ from, action, to, actors, event });
+  requiresReason = false,
+): CaseTransition => Object.freeze({ from, action, to, actors, event, requiresReason });
 
 export const CASE_TRANSITIONS: readonly CaseTransition[] = Object.freeze([
   T(
@@ -51,6 +67,7 @@ export const CASE_TRANSITIONS: readonly CaseTransition[] = Object.freeze([
     CaseStatus.CANCELLED,
     [RoleCode.SUPERVISOR],
     CaseEventType.CASE_CANCELLED,
+    true,
   ),
   T(
     CaseStatus.DATA_READY,
@@ -119,6 +136,7 @@ export const CASE_TRANSITIONS: readonly CaseTransition[] = Object.freeze([
     CaseStatus.REVIEW_RETURNED,
     [RoleCode.REVIEWER],
     CaseEventType.REVIEW_RETURNED,
+    true,
   ),
   T(
     CaseStatus.REVIEW_RETURNED,
@@ -154,6 +172,7 @@ export const CASE_TRANSITIONS: readonly CaseTransition[] = Object.freeze([
     CaseStatus.REJECTED,
     [RoleCode.APPROVER_L1, RoleCode.APPROVER_L2, RoleCode.APPROVER_L3],
     CaseEventType.REJECTED,
+    true,
   ),
   T(
     CaseStatus.REJECTED,
@@ -373,6 +392,7 @@ export const CASE_TRANSITIONS: readonly CaseTransition[] = Object.freeze([
     CaseStatus.WRITTEN_OFF,
     [RoleCode.SUPERVISOR],
     CaseEventType.CASE_CLOSED,
+    true,
   ),
 ]);
 

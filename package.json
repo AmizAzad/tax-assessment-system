@@ -25,6 +25,7 @@
     "format:check": "prettier --check \"**/*.{ts,js,json,yml,yaml}\"",
     "typecheck": "tsc --build --verbose",
     "dev:up": "docker compose -f deploy/docker/docker-compose.yml up -d",
+    "dev:up:podman": "node scripts/dev/stack-up.js",
     "dev:down": "docker compose -f deploy/docker/docker-compose.yml down",
     "dev:logs": "docker compose -f deploy/docker/docker-compose.yml logs -f",
     "dev:reset": "docker compose -f deploy/docker/docker-compose.yml down -v && npm run dev:up",

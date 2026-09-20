@@ -300,6 +300,15 @@ code {
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: 0.75rem 1.5rem;
 
+  // `.tas-amount` ends its text so that digits line up down a money column in
+  // a table. A fact is a label with its value underneath, and there is no
+  // column to line up with, so the amount drifted to the far edge of its cell
+  // while every other value sat under its label. Money keeps its tabular
+  // figures here and follows the label.
+  .tas-amount {
+    text-align: start;
+  }
+
   dt {
     font-size: 0.75rem;
     text-transform: uppercase;
