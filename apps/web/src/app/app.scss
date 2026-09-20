@@ -6,8 +6,14 @@
   &__header {
     display: flex;
     align-items: center;
-    gap: 2rem;
-    padding: 0.75rem 1.5rem;
+    /* Measured in Chromium at the 1440px end-to-end viewport: the nav is
+       pinned at its 1000px min-content width and the row already filled the
+       viewport exactly, so adding a 30px appearance control pushed the user
+       block 34px past the right edge. Reclaiming a gap and a third of the
+       inline padding puts the row back inside 1440px, and the header's height
+       is unchanged. */
+    gap: 1rem;
+    padding: 0.75rem 1rem;
     background: var(--tas-surface);
     border-bottom: 1px solid var(--tas-border);
   }
