@@ -25,6 +25,64 @@
   --tas-info: #1f6feb;
   --tas-info-bg: #eef4fd;
   --tas-success: #1a7f4b;
+  --tas-success-bg: #eaf7f0;
+  --tas-warning: #b7791f;
+  --tas-warning-bg: #fff7e6;
+  --tas-warning-text: #8a5a08;
+  --tas-link: #1a4f7a;
+  --tas-link-visited: #6b3fa0;
+
+  /* The chosen background sits behind everything, with a veil of the page
+     colour over it so body text keeps its contrast on a photograph. Both are
+     inert until somebody picks one. */
+  --tas-bg-image: none;
+  --tas-bg-veil: transparent;
+}
+
+/* Dark mode is the token swap this file was built for, so it is a second set
+   of values and no component changes. Officers read assessments for hours,
+   and an interface that only exists at full brightness is one they work
+   around by dimming the screen, which costs them the contrast instead.
+
+   The primary button inverts rather than darkening. White on a dark blue
+   works on a white page; on a dark page that same button sinks into the
+   surface, so dark text on a lighter blue is what keeps it a button. */
+[data-theme='dark'] {
+  --tas-bg: #11151b;
+  --tas-surface: #1a1f28;
+  --tas-surface-muted: #232a35;
+  --tas-border: #39424f;
+  --tas-text: #e6eaf0;
+  --tas-text-strong: #f7f9fc;
+  --tas-text-muted: #a3aebd;
+  --tas-primary: #8ab9e8;
+  --tas-primary-hover: #a9cdf2;
+  --tas-primary-contrast: #0c1017;
+  --tas-danger: #ff9a92;
+  --tas-danger-bg: #3a1d1b;
+  --tas-info: #8fc0ff;
+  --tas-info-bg: #16263c;
+  --tas-success: #74d3a0;
+  --tas-success-bg: #14301f;
+  --tas-warning: #e3b463;
+  --tas-warning-bg: #332614;
+  --tas-warning-text: #f0cf9a;
+  --tas-link: #8ab9e8;
+  --tas-link-visited: #c9adee;
+}
+
+/* Links had no colour of their own, so they took the browser's blue and its
+   visited purple. That reads on a white page and disappears on a dark one,
+   where a case number an officer had already opened turned almost black
+   against the background. Visited is kept as a distinct colour rather than
+   dropped, because in a register of hundreds of rows "I have looked at this
+   one" is worth seeing. */
+a {
+  color: var(--tas-link);
+
+  &:visited {
+    color: var(--tas-link-visited);
+  }
 }
 
 * {
@@ -35,7 +93,7 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--tas-bg);
+  background-color: var(--tas-bg);
   color: var(--tas-text);
   font-family:
     'Segoe UI',
@@ -44,6 +102,24 @@ body {
     sans-serif;
   font-size: 15px;
   line-height: 1.5;
+}
+
+/* The chosen background, if there is one.
+ *
+ * The veil is painted as a one-colour gradient above the image and below the
+ * content, which keeps the whole thing in one property and needs no element
+ * of its own to sit in the stacking order. `fixed` so a long register scrolls
+ * over a still background rather than dragging a photograph up the screen.
+ *
+ * Nothing here applies until a background is chosen, because the two custom
+ * properties are `none` and `transparent` until then. */
+body {
+  background-image: linear-gradient(var(--tas-bg-veil), var(--tas-bg-veil)), var(--tas-bg-image);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  min-height: 100vh;
 }
 
 /* Buttons.
@@ -234,13 +310,13 @@ code {
   }
 
   &--waiting {
-    background: #fff7e6;
-    border-color: #b7791f;
-    color: #8a5a08;
+    background: var(--tas-warning-bg);
+    border-color: var(--tas-warning);
+    color: var(--tas-warning-text);
   }
 
   &--done {
-    background: #eaf7f0;
+    background: var(--tas-success-bg);
     border-color: var(--tas-success);
     color: var(--tas-success);
   }
@@ -394,7 +470,7 @@ code {
   }
 
   &--warn span {
-    background: #b7791f;
+    background: var(--tas-warning);
   }
 
   &--over span {
