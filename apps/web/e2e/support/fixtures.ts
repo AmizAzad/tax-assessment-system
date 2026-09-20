@@ -99,16 +99,30 @@ export async function apiGet<T>(role: Role, path: string): Promise<T> {
  * suite people are meant to run before pushing.
  */
 export async function freeAssessmentYear(taxpayerTin = '1234567890'): Promise<string> {
-  const page = await apiGet<{ rows: { tin: string; assessmentYear: string }[] }>(
-    'supervisor',
-    '/cases?pageSize=200',
-  );
+  // Every page, not the first one. This used to read `/cases?pageSize=200`
+  // and treat it as the whole register, which is true until the suite has run
+  // often enough to fill a second page. After that it started handing back a
+  // year an unseen case already held, the server refused the duplicate, and
+  // the run failed at "open a case" looking like a defect in the workbench.
+  const used = new Set<string>();
 
-  const used = new Set(
-    page.rows.filter((row) => row.tin === taxpayerTin).map((row) => row.assessmentYear),
-  );
+  for (let page = 1; ; page += 1) {
+    const result = await apiGet<{
+      rows: { tin: string; assessmentYear: string }[];
+      total: number;
+    }>('supervisor', `/cases?search=${encodeURIComponent(taxpayerTin)}&pageSize=200&page=${page}`);
 
-  for (let year = 2100; year < 2400; year += 1) {
+    for (const row of result.rows) {
+      if (row.tin === taxpayerTin) used.add(String(row.assessmentYear));
+    }
+
+    if (result.rows.length < 200 || page * 200 >= result.total) break;
+  }
+
+  // Past the highest year the suite has ever reached. A closed year is legal
+  // to reopen now, but taking one would make a run's cases share a period
+  // with an earlier run's, so the search stays forward-only.
+  for (let year = 2100; year < 3600; year += 1) {
     if (!used.has(String(year))) {
       return String(year);
     }
