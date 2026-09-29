@@ -8,6 +8,7 @@ import {
   apiGet,
   apiStatus,
   apiToken,
+  demoTaxpayer,
   expect,
   freeAssessmentYear,
   test,
@@ -139,7 +140,10 @@ async function apiPost(role: Role, path: string, body: unknown): Promise<number>
 
 /** Open a case and take it to preparation. The preamble every branch shares. */
 async function prepareCase(cast: Cast): Promise<CaseUnderTest> {
-  const opened = await Workbench.openCase(cast.supervisor, { year: await freeAssessmentYear() });
+  const opened = await Workbench.openCase(cast.supervisor, {
+    taxpayerId: (await demoTaxpayer()).taxpayerId,
+    year: await freeAssessmentYear(),
+  });
   const c = caseFrom(opened);
 
   const supervisor = new Workbench(cast.supervisor);
@@ -552,7 +556,10 @@ test.describe('a documented assessment', () => {
 
     await test.step('a supervisor opens the case', async () => {
       const page = await as('supervisor');
-      const opened = await Workbench.openCase(page, { year: await freeAssessmentYear() });
+      const opened = await Workbench.openCase(page, {
+        taxpayerId: (await demoTaxpayer()).taxpayerId,
+        year: await freeAssessmentYear(),
+      });
       caseUrl = opened.url;
       caseNumber = opened.caseNumber;
       caseId = Number(/\/cases\/(\d+)$/.exec(caseUrl)?.[1]);
@@ -916,13 +923,7 @@ test.describe('a documented assessment', () => {
       await workbench.act('Route for approval');
       await workbench.expectStatus('Pending approval');
 
-      // Scoped to the action bar's own card. The tab below it carries muted
-      // explanatory prose of its own, and the last one on the page is that.
-      const actions = page
-        .locator('.tas-card')
-        .filter({ has: page.getByText('Actions') })
-        .first();
-      await expect(actions.locator('.tas-muted')).toContainText(/band/i, { timeout: 20_000 });
+      await expect(workbench.actionNote()).toContainText(/band/i, { timeout: 20_000 });
 
       await recorder.capture(page, {
         id: 'route-for-approval',
@@ -1549,7 +1550,10 @@ test.describe('a documented assessment', () => {
 
     await test.step('the action bar offers a cancel the state machine will not allow', async () => {
       const page = cast.supervisor;
-      const opened = await Workbench.openCase(page, { year: await freeAssessmentYear() });
+      const opened = await Workbench.openCase(page, {
+        taxpayerId: (await demoTaxpayer()).taxpayerId,
+        year: await freeAssessmentYear(),
+      });
       const workbench = new Workbench(page);
 
       // The engine refreshes evidence within a second of a case opening, so a
@@ -1587,7 +1591,7 @@ test.describe('a documented assessment', () => {
       // silently convert it. The case therefore stays at INITIATED instead of
       // being carried to DATA_READY a second after it opens, which is the only
       // state CANCEL is permitted from.
-      await apiPost('supervisor', '/taxpayers/1/account', {
+      await apiPost('supervisor', `/taxpayers/${(await demoTaxpayer()).taxpayerId}/account`, {
         entryType: 'ADVANCE_PAYMENT',
         taxTypeCode: 'CIT',
         assessmentYear: year,
@@ -1598,7 +1602,10 @@ test.describe('a documented assessment', () => {
         narrative: 'Seeded in euro so the account source cannot answer a sterling case.',
       });
 
-      const opened = await Workbench.openCase(cast.supervisor, { year });
+      const opened = await Workbench.openCase(cast.supervisor, {
+        taxpayerId: (await demoTaxpayer()).taxpayerId,
+        year,
+      });
       const stuck = caseFrom(opened);
       const workbench = new Workbench(cast.supervisor);
       await workbench.expectStatus('Initiated');
@@ -2357,7 +2364,7 @@ test.describe('a documented assessment', () => {
       // sterling case, which is what holds a case at Initiated long enough for
       // anything to be proved from there.
       const year = await freeAssessmentYear();
-      await apiPost('supervisor', '/taxpayers/1/account', {
+      await apiPost('supervisor', `/taxpayers/${(await demoTaxpayer()).taxpayerId}/account`, {
         entryType: 'ADVANCE_PAYMENT',
         taxTypeCode: 'CIT',
         assessmentYear: year,
@@ -2368,7 +2375,12 @@ test.describe('a documented assessment', () => {
         narrative: 'Seeded in euro so the account source cannot answer a sterling case.',
       });
 
-      const neverWorked = caseFrom(await Workbench.openCase(cast.supervisor, { year }));
+      const neverWorked = caseFrom(
+        await Workbench.openCase(cast.supervisor, {
+          taxpayerId: (await demoTaxpayer()).taxpayerId,
+          year,
+        }),
+      );
       const atTheDoor = new Workbench(cast.supervisor);
       await atTheDoor.retrieveEvidence();
       await atTheDoor.expectStatus('Initiated');

@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * The assessment workbench, as an officer uses it.
@@ -16,12 +16,12 @@ export class Workbench {
   /** Open the register and start a case. Returns its case number. */
   static async openCase(
     page: Page,
-    options: { taxpayerId?: number; taxType?: string; year: string },
+    options: { taxpayerId: number; taxType?: string; year: string },
   ): Promise<{ caseNumber: string; url: string }> {
     await page.goto('/cases');
     await page.getByRole('button', { name: 'Open a case' }).click();
 
-    await page.locator('#new-taxpayer').fill(String(options.taxpayerId ?? 1));
+    await page.locator('#new-taxpayer').fill(String(options.taxpayerId));
     await page.locator('#new-taxtype').fill(options.taxType ?? 'CIT');
     await page.locator('#new-year').fill(options.year);
     await page.locator('#new-type').selectOption('DESK');
@@ -55,6 +55,20 @@ export class Workbench {
   /** Press a lifecycle action in the Actions bar. */
   async act(label: string): Promise<void> {
     await this.page.getByRole('button', { name: label, exact: true }).click();
+  }
+
+  /**
+   * What the service said about the last action, under the Actions bar.
+   *
+   * Scoped to that bar's own card: the tab below carries muted prose of its
+   * own, so the last muted paragraph on the page is the tab's, not the note.
+   */
+  actionNote(): Locator {
+    return this.page
+      .locator('.tas-card')
+      .filter({ has: this.page.getByText('Actions') })
+      .first()
+      .locator('.tas-muted');
   }
 
   /** Press an action and expect the server to refuse it. */

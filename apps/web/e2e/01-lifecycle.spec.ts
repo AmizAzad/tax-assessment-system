@@ -1,4 +1,4 @@
-import { expect, freeAssessmentYear, test } from './support/fixtures';
+import { demoTaxpayer, expect, freeAssessmentYear, test } from './support/fixtures';
 import { Workbench } from './support/workbench';
 
 /**
@@ -24,13 +24,14 @@ import { Workbench } from './support/workbench';
  */
 test.describe('a complete assessment', () => {
   test('moves from opened to approved through six officers', async ({ as }) => {
+    const { taxpayerId } = await demoTaxpayer();
     const year = await freeAssessmentYear();
     let caseUrl = '';
     let caseNumber = '';
 
     await test.step('a supervisor opens the case', async () => {
       const page = await as('supervisor');
-      const opened = await Workbench.openCase(page, { year });
+      const opened = await Workbench.openCase(page, { taxpayerId, year });
       caseUrl = opened.url;
       caseNumber = opened.caseNumber;
 
@@ -143,9 +144,7 @@ test.describe('a complete assessment', () => {
 
       // The service reports how it chose, and the screen shows that sentence.
       // It is the answer to "why me" when the case lands on an approver.
-      await expect(page.locator('.tas-card .tas-muted').last()).toContainText(/band/i, {
-        timeout: 20_000,
-      });
+      await expect(workbench.actionNote()).toContainText(/band/i, { timeout: 20_000 });
     });
 
     await test.step('an assessor cannot approve their own case', async () => {

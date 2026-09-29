@@ -87,6 +87,23 @@ export async function apiGet<T>(role: Role, path: string): Promise<T> {
 }
 
 /**
+ * The company the suite assesses: whoever `acme-finance` acts for.
+ *
+ * Asked rather than assumed. Ids come from the order rows were written in,
+ * and the second-jurisdiction migration writes Najd before the seed writes
+ * Acme, so on a fresh stack "taxpayer 1" is a Saudi company. A hard-coded id
+ * opened the case on one taxpayer while `freeAssessmentYear` checked another,
+ * and the run failed at "open a case" on a year it had just called free.
+ *
+ * The portal answers from the recorded authority, so this also fails loudly
+ * if the taxpayer login acts for nobody — which the portal specs need anyway.
+ */
+export async function demoTaxpayer(): Promise<{ taxpayerId: number; tin: string }> {
+  const me = await apiGet<{ taxpayerId: number; tin: string }>('acme-finance', '/portal/me');
+  return { taxpayerId: me.taxpayerId, tin: me.tin };
+}
+
+/**
  * An assessment year this taxpayer has not used.
  *
  * The register enforces one live case per taxpayer, tax type and year, so a
