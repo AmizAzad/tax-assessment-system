@@ -5,7 +5,9 @@ import {
   InvalidTransitionError,
   RoleCode,
   TERMINAL_CASE_STATUSES,
+  UNDER_DECISION_CASE_STATUSES,
   UnauthorisedTransitionError,
+  areFiguresLocked,
   assertTransition,
   availableActions,
   findTransition,
@@ -303,5 +305,43 @@ describe('lifecycle walkthrough', () => {
 
     current = assertTransition(current, 'START', [RoleCode.ASSESSOR]).to;
     expect(current).toBe(CaseStatus.IN_PREPARATION);
+  });
+});
+
+describe('when the figures may change', () => {
+  it('locks them from submission for review, not only from finalisation', () => {
+    for (const status of [
+      CaseStatus.UNDER_REVIEW,
+      CaseStatus.REVIEWED,
+      CaseStatus.PENDING_APPROVAL,
+      CaseStatus.APPROVED,
+      CaseStatus.FINALISED,
+    ]) {
+      expect(areFiguresLocked(status)).toBe(true);
+    }
+  });
+
+  it('leaves them open while the case is being prepared or reworked', () => {
+    for (const status of [CaseStatus.IN_PREPARATION, CaseStatus.CALCULATED]) {
+      expect(areFiguresLocked(status)).toBe(false);
+    }
+  });
+
+  // A locked status with no way back to preparation would strand a figure
+  // somebody found wrong during review.
+  it('offers a way back to preparation from every status under decision', () => {
+    for (const status of UNDER_DECISION_CASE_STATUSES) {
+      const seen = new Set<CaseStatus>([status]);
+      const queue = [status];
+      while (queue.length > 0) {
+        for (const next of reachableStatuses(queue.shift()!)) {
+          if (!seen.has(next)) {
+            seen.add(next);
+            queue.push(next);
+          }
+        }
+      }
+      expect([...seen]).toContain(CaseStatus.IN_PREPARATION);
+    }
   });
 });

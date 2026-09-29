@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Inject, Injectable } from '@nestjs/common';
-import { CaseEventType, isFrozenStatus } from '@tas/contracts';
+import { CaseEventType, areFiguresLocked, isFrozenStatus } from '@tas/contracts';
 import { Money } from '@tas/decimal';
 import { QueryTypes, type Sequelize } from 'sequelize';
 import { SEQUELIZE } from '../../infrastructure/tokens';
@@ -76,6 +76,12 @@ export class AdjustmentService {
       throw new ConflictException(
         `Case ${assessmentCase.caseNumber} is ${assessmentCase.statusCode}. ` +
           `A finalised assessment cannot be adjusted — reassess it instead.`,
+      );
+    }
+    if (areFiguresLocked(assessmentCase.statusCode)) {
+      throw new ConflictException(
+        `Case ${assessmentCase.caseNumber} is ${assessmentCase.statusCode}: its figures are ` +
+          `being reviewed or approved and cannot be adjusted. Return it for rework first.`,
       );
     }
 
@@ -155,6 +161,12 @@ export class AdjustmentService {
     if (isFrozenStatus(assessmentCase.statusCode)) {
       throw new ConflictException(
         `Case ${assessmentCase.caseNumber} is ${assessmentCase.statusCode} and cannot be adjusted.`,
+      );
+    }
+    if (areFiguresLocked(assessmentCase.statusCode)) {
+      throw new ConflictException(
+        `Case ${assessmentCase.caseNumber} is ${assessmentCase.statusCode}: its figures are ` +
+          `being reviewed or approved and cannot be adjusted. Return it for rework first.`,
       );
     }
 

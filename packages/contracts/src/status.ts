@@ -92,6 +92,27 @@ export function isFrozenStatus(status: CaseStatus): boolean {
   return FROZEN_CASE_STATUSES.includes(status);
 }
 
+/**
+ * Statuses in which somebody other than the preparer is deciding on the figures.
+ *
+ * Adjusting or recalculating here would change the figure after the reviewer
+ * or approver had looked at it, and finalising would then serve a liability
+ * nobody but its author ever saw. Evidence already freezes from the same
+ * point. A figure that has to change goes back through Return for rework,
+ * which puts it in front of the reviewer again.
+ */
+export const UNDER_DECISION_CASE_STATUSES: readonly CaseStatus[] = Object.freeze([
+  CaseStatus.UNDER_REVIEW,
+  CaseStatus.REVIEWED,
+  CaseStatus.PENDING_APPROVAL,
+  CaseStatus.APPROVED,
+]);
+
+/** Whether adjustments and calculation are closed: under decision, or frozen. */
+export function areFiguresLocked(status: CaseStatus): boolean {
+  return UNDER_DECISION_CASE_STATUSES.includes(status) || isFrozenStatus(status);
+}
+
 /** The liability axis. Independent of case status. */
 export enum LiabilityStatus {
   UNPAID = 'UNPAID',
