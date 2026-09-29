@@ -147,10 +147,26 @@ async function main() {
       '/dashboard/summary',
       '/dashboard/workload',
       '/exports',
+      '/workflow/tasks',
     ]) {
       const code = await status(path, taxpayer);
       record('portal', `a taxpayer cannot reach ${path}`, code === 403, `HTTP ${code}`);
     }
+
+    // The officer's objection route acts on any case, so it must be shut to a
+    // taxpayer, whose door is the portal route that checks their authority.
+    // The body is deliberately invalid: where the route is wrongly open this
+    // answers 400 and still writes nothing.
+    const officerObjection = await status('/cases/1/objections', taxpayer, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    record(
+      'portal',
+      'a taxpayer cannot use the officer objection route',
+      officerObjection === 403,
+      `HTTP ${officerObjection}`,
+    );
 
     // The one that matters most: another taxpayer's data, by identifier.
     const ownCases = (await body('/portal/cases', taxpayer)) ?? [];
