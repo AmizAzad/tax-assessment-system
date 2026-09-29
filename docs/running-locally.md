@@ -66,6 +66,12 @@ npm run db:migrate
 npx sequelize-cli db:seed:all --config db/config.js --seeders-path db/seeds --env development
 ```
 
+The seed is not optional for the end-to-end suite or the walkthroughs below:
+it creates the demo company, Acme Trading Ltd, its filed return and account
+entries, and links the `acme-finance` portal login to it. Without it the
+portal user acts for nobody and every GB walkthrough has no taxpayer to open
+a case on.
+
 ---
 
 ## 3. Start the API
@@ -446,6 +452,13 @@ figure from this system to anybody.
 This is the end-to-end path, in order. Every command below has been run against
 a clean stack. Amounts come from the demo company seeded by `npm run db:seed`.
 
+Taxpayer ids follow the order rows were written. On a stack built as section 2
+describes, migrations run before seeds, so the Saudi company from migration
+`20261006000100` is taxpayer **1** and the seeded Acme Trading Ltd
+(TIN `1234567890`) is taxpayer **2**. A database that was seeded before that
+migration existed has them the other way round; check with
+`SELECT id, tin, name FROM platform.taxpayer` rather than assuming.
+
 Get tokens for the four people involved:
 
 ```powershell
@@ -471,7 +484,7 @@ tax type and year is refused with 409 — reassess the first instead.
 ```powershell
 $case = Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/v1/cases -Headers (H $sup) `
   -ContentType application/json -Body (@{
-    taxpayerId=1; taxTypeCode='CIT'; assessmentYear='2024'
+    taxpayerId=2; taxTypeCode='CIT'; assessmentYear='2024'
     assessmentType='DESK'; triggerPath='RISK'; limitationDate='2029-12-31'
   } | ConvertTo-Json)
 $id = $case.id
@@ -761,10 +774,10 @@ The proof that a jurisdiction is configuration, not code. Saudi Arabia is
 seeded by migration `20261006000100`.
 
 ```powershell
-# Najd Industrial Co. is taxpayer 2
+# Najd Industrial Co. is taxpayer 1 on a fresh stack (see section 12)
 $sa = Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/v1/cases -Headers (H $sup) `
   -ContentType application/json -Body (@{
-    taxpayerId=2; taxTypeCode='CIT'; assessmentYear='2024'
+    taxpayerId=1; taxTypeCode='CIT'; assessmentYear='2024'
     assessmentType='DESK'; triggerPath='RISK'; limitationDate='2030-12-31'
   } | ConvertTo-Json)
 
@@ -985,7 +998,7 @@ Now open a case and watch the loop:
 ```powershell
 $c = Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/v1/cases -Headers (H $sup) `
   -ContentType application/json -Body (@{
-    taxpayerId=1; taxTypeCode='CIT'; assessmentYear='2019'
+    taxpayerId=2; taxTypeCode='CIT'; assessmentYear='2019'
     assessmentType='DESK'; triggerPath='RISK' } | ConvertTo-Json)
 
 # The process that is coordinating it

@@ -18,19 +18,19 @@ Three things follow:
 
 ## Levels
 
-| Level              | Scope                                                                                                                                                         | Tooling                           | Gate                                                          |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------- |
-| **Unit**           | Calculation steps, rule resolution, deadline computation, admissibility, numbering, hashing, scope predicates                                                 | Jest                              | 90%+ on calculation and deadline; **100% branch on rounding** |
-| **Golden-file**    | Whole-case fixtures with expected outputs **and expected traces**. UK CIT today; not SME-signed                                                               | Jest + committed fixtures         | **Blocking**                                                  |
-| **Property-based** | Rounding direction, non-negativity, monotonicity, idempotency of recalculation                                                                                | `fast-check`                      | Advisory in Phase 3, blocking from Phase 4                    |
-| **Integration**    | Evidence retrieval, submission persistence, workflow transitions, notice render and sign, notification dispatch                                               | Jest + real Postgres in Docker    | Blocking                                                      |
-| **Workflow**       | Every BPMN path including timers, escalation, boundary events; message correlation across main, objection and appeal                                          | JUnit with a test clock           | Blocking                                                      |
-| **Contract**       | API to Flowable, API to providers. The BPMN side is covered by the publish-time validator and the engine integration tests                                    | Generated from OpenAPI            | Partial                                                       |
-| **Security**       | RBAC matrix per role x route; record-level scoping; field-level enforcement on submit; public endpoint exposure                                               | Jest + manual review              | Blocking                                                      |
-| **E2E**            | Multi-role journeys: initiate to close, including dispute. **Not built** — covered today by integration tests and the live probe, which is not the same thing | Playwright (intended)             | Not enforced                                                  |
-| **Performance**    | Register at 920k cases, measured by hand (`npm run load:seed`). Calculation throughput and notice concurrency **not** measured                                | k6 (intended)                     | Not enforced                                                  |
-| **Accessibility**  | WCAG 2.1 AA on the main journey. Focus visibility, skip link and the tab-list keyboard pattern are implemented; **no axe run and no manual audit yet**        | axe + manual (intended)           | Not enforced                                                  |
-| **UAT**            | Tax officers on anonymised cases, per jurisdiction                                                                                                            | Manual, from the canonical corpus | Sign-off                                                      |
+| Level              | Scope                                                                                                                                                          | Tooling                           | Gate                                                          |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------- |
+| **Unit**           | Calculation steps, rule resolution, deadline computation, admissibility, numbering, hashing, scope predicates                                                  | Jest                              | 90%+ on calculation and deadline; **100% branch on rounding** |
+| **Golden-file**    | Whole-case fixtures with expected outputs **and expected traces**. UK CIT today; not SME-signed                                                                | Jest + committed fixtures         | **Blocking**                                                  |
+| **Property-based** | Rounding direction, non-negativity, monotonicity, idempotency of recalculation                                                                                 | `fast-check`                      | Advisory in Phase 3, blocking from Phase 4                    |
+| **Integration**    | Evidence retrieval, submission persistence, workflow transitions, notice render and sign, notification dispatch                                                | Jest + real Postgres in Docker    | Blocking                                                      |
+| **Workflow**       | Every BPMN path including timers, escalation, boundary events; message correlation across main, objection and appeal                                           | JUnit with a test clock           | Blocking                                                      |
+| **Contract**       | API to Flowable, API to providers. The BPMN side is covered by the publish-time validator and the engine integration tests                                     | Generated from OpenAPI            | Partial                                                       |
+| **Security**       | RBAC matrix per role x route; record-level scoping; field-level enforcement on submit; public endpoint exposure                                                | Jest + manual review              | Blocking                                                      |
+| **E2E**            | Multi-role journeys through the real screens: initiate to close, including dispute, role separation, register, portal, modeller. See [End to end](#end-to-end) | Playwright                        | Local only; not in CI yet                                     |
+| **Performance**    | Register at 920k cases, measured by hand (`npm run load:seed`). Calculation throughput and notice concurrency **not** measured                                 | k6 (intended)                     | Not enforced                                                  |
+| **Accessibility**  | WCAG 2.1 AA on the main journey. Focus visibility, skip link and the tab-list keyboard pattern are implemented; **no axe run and no manual audit yet**         | axe + manual (intended)           | Not enforced                                                  |
+| **UAT**            | Tax officers on anonymised cases, per jurisdiction                                                                                                             | Manual, from the canonical corpus | Sign-off                                                      |
 
 ---
 
@@ -112,6 +112,54 @@ cd packages/decimal   && npx jest --coverage
 cd packages/contracts && npx jest
 cd apps/api           && npx jest          # integration needs npm run dev:up
 ```
+
+---
+
+## End to end
+
+`apps/web/e2e`, run with `npm run test:e2e`. Real browsers, real screens, the
+real API, Keycloak and Postgres, signing in as each of the ten seeded logins.
+Not part of `npm test` and not in CI yet, because CI does not provision
+Keycloak, MinIO, the API and the web app.
+
+### Before a run
+
+```bash
+npm run dev:up            # containers
+npm run db:migrate
+npm run db:seed           # the demo company and the acme-finance portal link
+npm run start:api         # or let Playwright start it
+npm run start:web
+```
+
+The seed is required. Without it the portal login acts for nobody and the
+suite has no GB taxpayer to open cases on.
+
+### One recording per test, paced for a person
+
+Every test in the `chromium` project is recorded to a single video, attached
+to the HTML report (`npx playwright show-report`):
+
+- **One tab, handed between officers.** A lifecycle is several people acting
+  on one case, so the `as(role)` fixture gives every officer the same tab. On
+  a hand-over the tab goes to `/favicon.ico`, where the app is not running,
+  its sessionStorage is replaced with the next officer's saved session, and a
+  card reading "Signing in as …" stays up for a moment before the app boots
+  as that officer. The API sees a different token for each officer, exactly
+  as from a different desk.
+- **A handle used out of turn is refused.** `as('assessor')` returns a view of
+  the shared tab bound to the assessor. Navigating through it hands the tab
+  over; any other use while a different officer holds the tab throws, rather
+  than performing the click as the wrong person.
+- **Who is acting** is captioned in the corner of every frame. The caption is
+  in a closed shadow root, so no locator in a spec can match it.
+- **Paced.** Every action waits `E2E_SLOW_MO` milliseconds first (default
+  400), and test timeouts scale with it. `E2E_SLOW_MO=0 npm run test:e2e` for
+  a quick check with the same videos, just fast.
+- Recorded at the 1440x900 viewport the tests run at.
+
+The sign-in setup tests use Playwright's own page and get their own short
+recording each.
 
 ---
 
