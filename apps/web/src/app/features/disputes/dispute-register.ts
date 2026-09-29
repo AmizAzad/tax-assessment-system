@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { AssessmentService } from '../../core/assessment.service';
-import { EmptyState, ErrorAlert, StatusBadge, describeError } from '../../shared/ui';
+import { EmptyState, ErrorAlert, HumanisePipe, StatusBadge, describeError } from '../../shared/ui';
 
 /**
  * The dispute register.
@@ -21,7 +22,7 @@ import { EmptyState, ErrorAlert, StatusBadge, describeError } from '../../shared
   selector: 'tas-dispute-register',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, StatusBadge, EmptyState, ErrorAlert],
+  imports: [FormsModule, RouterLink, HumanisePipe, StatusBadge, EmptyState, ErrorAlert],
   template: `
     <div class="tas-page-head">
       <div>
@@ -62,15 +63,23 @@ import { EmptyState, ErrorAlert, StatusBadge, describeError } from '../../shared
           <tbody>
             @for (row of rows(); track $index) {
               <tr>
-                <td>{{ row['kind'] }}</td>
+                <td>{{ asText(row['kind']) | tasHumanise }}</td>
                 <td>
                   <code>{{ row['reference'] }}</code>
                 </td>
-                <td>{{ row['case_number'] }}</td>
+                <td>
+                  <!-- The committee member has no register to browse: this link
+                       is how they reach the case they were convened for. -->
+                  @if (row['case_id'] != null) {
+                    <a [routerLink]="['/cases', row['case_id']]">{{ row['case_number'] }}</a>
+                  } @else {
+                    {{ row['case_number'] }}
+                  }
+                </td>
                 <td class="tas-muted">{{ row['tin'] }}</td>
                 <td>{{ row['filed_on'] }}</td>
                 <td><tas-status [status]="asText(row['status'])" /></td>
-                <td>{{ row['outcome'] ?? '—' }}</td>
+                <td>{{ row['outcome'] ? (asText(row['outcome']) | tasHumanise) : '—' }}</td>
                 <td>
                   @if (asNumber(row['days_late']) > 0) {
                     <span style="color:var(--tas-danger)">

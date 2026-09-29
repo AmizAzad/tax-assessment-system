@@ -1,9 +1,33 @@
 <a class="tas-skip" href="#tas-main">Skip to content</a>
 <div class="tas-shell">
   <header class="tas-shell__header">
-    <div class="tas-shell__brand">
-      <span class="tas-shell__mark">TA</span>
-      <span>Tax Assessment System</span>
+    <div class="tas-shell__bar">
+      <div class="tas-shell__brand">
+        <span class="tas-shell__mark" aria-hidden="true">TA</span>
+        <span>Tax Assessment System</span>
+      </div>
+
+      <div class="tas-shell__user">
+        <tas-appearance />
+        @if (i18n.languages().length > 1) {
+        <select
+          class="tas-shell__lang"
+          [value]="i18n.current()"
+          (change)="switchLanguage($any($event.target).value)"
+          aria-label="Language"
+        >
+          @for (language of i18n.languages(); track language.code) {
+          <option [value]="language.code">{{ language.displayName }}</option>
+          }
+        </select>
+        } @if (caller(); as user) {
+        <span class="tas-shell__whoami" [title]="user.roleCodes.join(', ')">
+          {{ user.username }}
+          <small>{{ businessRoles(user.roleCodes) }}</small>
+        </span>
+        <button type="button" class="tas-btn" (click)="logout()">Sign out</button>
+        }
+      </div>
     </div>
 
     <nav class="tas-shell__nav" aria-label="Main">
@@ -11,34 +35,12 @@
       <a
         [routerLink]="['/' + item.path]"
         routerLinkActive="is-active"
-        [routerLinkActiveOptions]="{ exact: item.path === '' }"
+        [routerLinkActiveOptions]="{ exact: item.exact === true }"
       >
         {{ item.label }}
       </a>
       }
     </nav>
-
-    <div class="tas-shell__user">
-      <tas-appearance />
-      @if (i18n.languages().length > 1) {
-      <select
-        class="tas-shell__lang"
-        [value]="i18n.current()"
-        (change)="switchLanguage($any($event.target).value)"
-        aria-label="Language"
-      >
-        @for (language of i18n.languages(); track language.code) {
-        <option [value]="language.code">{{ language.displayName }}</option>
-        }
-      </select>
-      } @if (caller(); as user) {
-      <span class="tas-shell__whoami">
-        {{ user.username }}
-        <small>{{ user.roleCodes.join(', ') }}</small>
-      </span>
-      <button type="button" class="tas-btn" (click)="logout()">Sign out</button>
-      }
-    </div>
   </header>
 
   <main id="tas-main" class="tas-shell__main" tabindex="-1">

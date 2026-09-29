@@ -269,7 +269,7 @@ interface PortalIdentity {
                   <th>Date</th>
                   <th>What</th>
                   <th>Period</th>
-                  <th style="text-align:end">Amount</th>
+                  <th class="tas-amount">Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -293,9 +293,9 @@ interface PortalIdentity {
               <thead>
                 <tr>
                   <th>From</th>
-                  <th style="text-align:end">Arose</th>
-                  <th style="text-align:end">Used</th>
-                  <th style="text-align:end">Left</th>
+                  <th class="tas-amount">Arose</th>
+                  <th class="tas-amount">Used</th>
+                  <th class="tas-amount">Left</th>
                 </tr>
               </thead>
               <tbody>

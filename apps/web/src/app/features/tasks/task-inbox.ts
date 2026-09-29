@@ -1,4 +1,5 @@
 import { Component, ChangeDetectionStrategy, OnInit, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 
 interface InboxTask {
@@ -18,12 +19,14 @@ interface InboxTask {
  * Served from the workflow read model, not the engine (plan 5.4): an
  * interactive screen should not depend on a second service's availability.
  *
- * It will be empty until Phase 2 starts process instances. That is the correct
- * state, not a failure, and the empty message says so.
+ * It is empty whenever no process instance is waiting on one of the caller's
+ * roles, which includes every case worked by hand while the engine is down.
+ * That is the correct state, not a failure, and the empty message says so.
  */
 @Component({
   selector: 'tas-task-inbox',
   standalone: true,
+  imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h1>My tasks</h1>
@@ -34,8 +37,8 @@ interface InboxTask {
       <div class="tas-card">
         <p class="tas-muted">No open tasks.</p>
         <p class="tas-muted">
-          Tasks appear here when a BPMN process reaches a step your roles can act on. The assessment
-          lifecycle lands in Phase 2.
+          Tasks appear here when the process engine assigns a step to one of your roles. Cases being
+          worked by hand are in <a routerLink="/queues">My Queues</a>.
         </p>
       </div>
     } @else {

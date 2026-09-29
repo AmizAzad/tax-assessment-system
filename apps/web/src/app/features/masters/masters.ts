@@ -1,5 +1,8 @@
 import { Component, ChangeDetectionStrategy, OnInit, inject, signal } from '@angular/core';
 import { ApiService } from '../../core/api.service';
+import { humanise } from '../../core/domain';
+import { I18nService } from '../../core/i18n.service';
+import { describeError } from '../../shared/ui';
 
 interface MasterItem {
   readonly itemCode: string;
@@ -39,7 +42,7 @@ interface MasterGroup {
           [class.tas-btn--primary]="selected() === code"
           (click)="select(code)"
         >
-          {{ code }}
+          {{ readable(code) }}
         </button>
       }
     </div>
@@ -48,26 +51,28 @@ interface MasterGroup {
       <div class="tas-alert tas-alert--danger" role="alert">{{ message }}</div>
     } @else if (group(); as g) {
       <div class="tas-card" style="margin-top:1rem">
-        <h2>{{ g.groupCode }}</h2>
+        <h2>{{ readable(g.groupCode) }}</h2>
         <p class="tas-muted">
           <code>{{ g.displayKey }}</code> · jurisdiction {{ g.jurisdictionCode ?? 'any' }}
         </p>
         <table class="tas-table">
           <thead>
             <tr>
+              <th>Label</th>
               <th>Code</th>
               <th>Display key</th>
-              <th>Order</th>
+              <th class="tas-amount">Order</th>
             </tr>
           </thead>
           <tbody>
             @for (item of g.items; track item.itemCode) {
               <tr>
+                <td>{{ label(item) }}</td>
                 <td>
                   <code>{{ item.itemCode }}</code>
                 </td>
-                <td>{{ item.displayKey }}</td>
-                <td>{{ item.sortOrder }}</td>
+                <td class="tas-muted">{{ item.displayKey }}</td>
+                <td class="tas-amount">{{ item.sortOrder }}</td>
               </tr>
             }
           </tbody>
@@ -88,6 +93,7 @@ interface MasterGroup {
 })
 export class Masters implements OnInit {
   private readonly api = inject(ApiService);
+  private readonly i18n = inject(I18nService);
 
   readonly groupCodes = [
     'ADJUSTMENT_TYPE',
@@ -116,7 +122,21 @@ export class Masters implements OnInit {
       this.group.set(await this.api.get<MasterGroup>(`/masters/${code}`));
     } catch (error) {
       this.group.set(null);
-      this.error.set(error instanceof Error ? error.message : 'Could not load reference data');
+      this.error.set(describeError(error));
     }
+  }
+
+  /** `ADJUSTMENT_TYPE` becomes `Adjustment type`; the code stays in the table. */
+  readable(code: string): string {
+    return humanise(code);
+  }
+
+  /**
+   * The label an officer sees in a dropdown. Falls back to the humanised code
+   * while a jurisdiction has not recorded one, so the column reads as words
+   * rather than as the key a translator has yet to fill.
+   */
+  label(item: MasterItem): string {
+    return this.i18n.t(item.displayKey, humanise(item.itemCode));
   }
 }

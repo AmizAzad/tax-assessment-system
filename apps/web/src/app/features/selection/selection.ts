@@ -37,35 +37,45 @@ import { EmptyState, ErrorAlert, describeError } from '../../shared/ui';
 
     <tas-error [message]="error()" />
 
-    <div class="tas-card">
-      <h2 style="margin-top:0">Run a selection</h2>
-      <div class="tas-grid">
-        <div class="tas-field">
-          <label for="sel-jurisdiction">Jurisdiction</label>
-          <input id="sel-jurisdiction" [(ngModel)]="jurisdictionCode" />
+    <!-- Choosing who gets assessed is the supervisor's and the administrator's
+         act. Anyone else who reads this screen sees the rules and the runs,
+         not a form the API will refuse. -->
+    @if (canRun()) {
+      <div class="tas-card">
+        <h2 style="margin-top:0">Run a selection</h2>
+        <div class="tas-grid">
+          <div class="tas-field">
+            <label for="sel-jurisdiction">Jurisdiction</label>
+            <input id="sel-jurisdiction" [(ngModel)]="jurisdictionCode" />
+          </div>
+          <div class="tas-field">
+            <label for="sel-taxtype">Tax type</label>
+            <input id="sel-taxtype" [(ngModel)]="taxTypeCode" />
+          </div>
+          <div class="tas-field">
+            <label for="sel-year">Assessment year</label>
+            <input id="sel-year" [(ngModel)]="assessmentYear" />
+          </div>
+          <div class="tas-field">
+            <label for="sel-threshold">Score threshold</label>
+            <input id="sel-threshold" type="number" [(ngModel)]="scoreThreshold" />
+            <span class="tas-field__hint">
+              A rule marked mandatory selects a taxpayer whatever the total.
+            </span>
+          </div>
         </div>
-        <div class="tas-field">
-          <label for="sel-taxtype">Tax type</label>
-          <input id="sel-taxtype" [(ngModel)]="taxTypeCode" />
-        </div>
-        <div class="tas-field">
-          <label for="sel-year">Assessment year</label>
-          <input id="sel-year" [(ngModel)]="assessmentYear" />
-        </div>
-        <div class="tas-field">
-          <label for="sel-threshold">Score threshold</label>
-          <input id="sel-threshold" type="number" [(ngModel)]="scoreThreshold" />
-          <span class="tas-field__hint">
-            A rule marked mandatory selects a taxpayer whatever the total.
-          </span>
+        <div class="tas-row" style="margin-block-start:1rem">
+          <button
+            type="button"
+            class="tas-btn tas-btn--primary"
+            [disabled]="busy()"
+            (click)="run()"
+          >
+            {{ busy() ? 'Scoring…' : 'Score taxpayers' }}
+          </button>
         </div>
       </div>
-      <div class="tas-row" style="margin-block-start:1rem">
-        <button type="button" class="tas-btn tas-btn--primary" [disabled]="busy()" (click)="run()">
-          {{ busy() ? 'Scoring…' : 'Score taxpayers' }}
-        </button>
-      </div>
-    </div>
+    }
 
     @if (result(); as r) {
       <div class="tas-card" style="margin-block-start:1rem">
@@ -78,7 +88,13 @@ import { EmptyState, ErrorAlert, describeError } from '../../shared/ui';
             </p>
           </div>
           <div class="tas-row">
-            <input type="number" [(ngModel)]="maxCases" style="width:6rem" />
+            <input
+              type="number"
+              class="tas-input"
+              aria-label="Most cases to open"
+              [(ngModel)]="maxCases"
+              style="width:6rem"
+            />
             <button type="button" class="tas-btn tas-btn--primary" (click)="openCases(r.runId)">
               Open cases
             </button>
@@ -97,7 +113,7 @@ import { EmptyState, ErrorAlert, describeError } from '../../shared/ui';
             <tr>
               <th>TIN</th>
               <th>Taxpayer</th>
-              <th style="text-align:end">Score</th>
+              <th class="tas-amount">Score</th>
               <th>Selected</th>
               <th>Why</th>
             </tr>
@@ -151,7 +167,7 @@ import { EmptyState, ErrorAlert, describeError } from '../../shared/ui';
               <th>Rule</th>
               <th>Indicator</th>
               <th>Parameters</th>
-              <th style="text-align:end">Weight</th>
+              <th class="tas-amount">Weight</th>
               <th>Mandatory</th>
             </tr>
           </thead>
@@ -190,9 +206,9 @@ import { EmptyState, ErrorAlert, describeError } from '../../shared/ui';
               <th>Run</th>
               <th>Campaign</th>
               <th>When</th>
-              <th style="text-align:end">Scored</th>
-              <th style="text-align:end">Selected</th>
-              <th style="text-align:end">Opened</th>
+              <th class="tas-amount">Scored</th>
+              <th class="tas-amount">Selected</th>
+              <th class="tas-amount">Opened</th>
             </tr>
           </thead>
           <tbody>

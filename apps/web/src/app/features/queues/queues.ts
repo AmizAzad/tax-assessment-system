@@ -85,7 +85,7 @@ interface Queue {
                 <th>Taxpayer</th>
                 <th>Period</th>
                 <th>Status</th>
-                <th style="text-align:end">Net payable</th>
+                <th class="tas-amount">Net payable</th>
                 <th>Opened</th>
               </tr>
             </thead>
