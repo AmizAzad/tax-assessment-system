@@ -60,15 +60,11 @@ export class Workbench {
   /**
    * What the service said about the last action, under the Actions bar.
    *
-   * Scoped to that bar's own card: the tab below carries muted prose of its
-   * own, so the last muted paragraph on the page is the tab's, not the note.
+   * By its own class rather than as "the muted text": the tab below carries
+   * muted prose of its own, and so does the bar when it has nothing to offer.
    */
   actionNote(): Locator {
-    return this.page
-      .locator('.tas-card')
-      .filter({ has: this.page.getByText('Actions') })
-      .first()
-      .locator('.tas-muted');
+    return this.page.locator('.tas-action-note');
   }
 
   /** Press an action and expect the server to refuse it. */

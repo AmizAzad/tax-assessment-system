@@ -1,11 +1,4 @@
-import {
-  test as base,
-  expect,
-  type Browser,
-  type BrowserContextOptions,
-  type Page,
-  type TestInfo,
-} from '@playwright/test';
+import { test as base, expect, type Page, type TestInfo } from '@playwright/test';
 import { readFileSync, rmSync } from 'node:fs';
 import { PASSWORD, sessionFile, type Role } from './session';
 
@@ -20,37 +13,11 @@ const API = process.env['E2E_API'] ?? 'http://localhost:3000';
  * The central one is `as(role)`: a page already signed in as that officer. A
  * lifecycle test needs six different people to act on the same case in order,
  * and logging each of them in through the form every time would make the
- * suite take longer than it is worth.
+ * suite take longer than it is worth. The saved session is in place before
+ * the app boots, so it is restored exactly as it would be for a returning
+ * user; a login performed after load would test a different path from the
+ * one a person takes.
  */
-
-/**
- * Open a page carrying a role's saved session.
- *
- * The session is injected **before** any script runs, so the application
- * restores it during bootstrap exactly as it would for a returning user. A
- * login performed after load would test a different path from the one a
- * person takes.
- */
-export async function openAs(
-  browser: Browser,
-  role: Role,
-  options: BrowserContextOptions = {},
-): Promise<Page> {
-  const context = await browser.newContext(options);
-  const session = readFileSync(sessionFile(role), 'utf8');
-
-  await context.addInitScript((stored: string) => {
-    const entries = JSON.parse(stored) as Record<string, string>;
-    for (const [key, value] of Object.entries(entries)) {
-      window.sessionStorage.setItem(key, value);
-    }
-  }, session);
-
-  const page = await context.newPage();
-  await page.goto('/');
-  await expect(page.locator('.tas-shell__whoami')).toContainText(role, { timeout: 30_000 });
-  return page;
-}
 
 /**
  * A token for talking to the API directly.
@@ -84,6 +51,32 @@ export async function apiStatus(role: Role, path: string): Promise<number> {
     headers: { Authorization: `Bearer ${token}` },
   });
   return response.status;
+}
+
+/**
+ * A write the server is expected to refuse, and what it said.
+ *
+ * The screen no longer offers an action a role cannot take, so a refusal the
+ * suite used to provoke by clicking is now asserted here. Both halves are
+ * the control: the screen not inviting the shortcut, and the server refusing
+ * it for anyone who tries anyway.
+ */
+export async function apiAttempt(
+  role: Role,
+  path: string,
+  body: unknown,
+): Promise<{ status: number; message: string }> {
+  const token = await apiToken(role);
+  const response = await fetch(`${API}/api/v1${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const payload = (await response.json().catch(() => ({}))) as { message?: unknown };
+  const message = Array.isArray(payload.message)
+    ? payload.message.join(' ')
+    : String(payload.message ?? '');
+  return { status: response.status, message };
 }
 
 export async function apiGet<T>(role: Role, path: string): Promise<T> {
@@ -160,11 +153,11 @@ export async function freeAssessmentYear(taxpayerTin = '1234567890'): Promise<st
 }
 
 /**
- * The configured `video` mode, applied to contexts this suite opens itself.
+ * The configured `video` mode, applied to the context this suite opens itself.
  *
- * Playwright records only the context behind its own `page` fixture. Every
- * officer here gets a fresh context from `browser.newContext()`, so without
- * this the setting in the config recorded the sign-in and nothing after it.
+ * Playwright records only the context behind its own `page` fixture. The
+ * stage below is a context of its own, so without this the setting in the
+ * config recorded the sign-in and nothing after it.
  */
 function videoMode(testInfo: TestInfo): string {
   const video = testInfo.project.use.video;
@@ -179,39 +172,205 @@ function keepVideo(mode: string, testInfo: TestInfo): boolean {
   return false;
 }
 
+/** How long the hand-over card stays up in a recording, so a viewer can read it. */
+const HANDOVER_PAUSE_MS = 1_500;
+
+/**
+ * Who is acting, drawn over every page of a recording.
+ *
+ * In a closed shadow root so no locator in any spec can match it: a
+ * `getByText('reviewer')` that found the caption instead of the screen would
+ * pass on a screen that shows nothing.
+ */
+function drawCaption(): void {
+  const draw = (): void => {
+    if (document.getElementById('tas-e2e-caption') !== null || document.body === null) return;
+    let who = '';
+    for (let index = 0; index < sessionStorage.length; index += 1) {
+      const key = sessionStorage.key(index) ?? '';
+      if (!key.startsWith('oidc.user:')) continue;
+      try {
+        who = JSON.parse(sessionStorage.getItem(key) ?? '{}').profile?.preferred_username ?? '';
+      } catch {
+        who = '';
+      }
+    }
+    if (who === '') return;
+    const host = document.createElement('div');
+    host.id = 'tas-e2e-caption';
+    host.setAttribute('aria-hidden', 'true');
+    const root = host.attachShadow({ mode: 'closed' });
+    root.innerHTML =
+      '<div style="position:fixed;left:12px;bottom:12px;z-index:2147483647;pointer-events:none;' +
+      'font:600 14px/1.2 system-ui,sans-serif;padding:6px 12px;border-radius:999px;' +
+      `background:rgba(17,24,39,.85);color:#fff">Acting as ${who}</div>`;
+    document.body.appendChild(host);
+  };
+  document.addEventListener('DOMContentLoaded', draw);
+  new MutationObserver(draw).observe(document, { childList: true, subtree: true });
+}
+
+/**
+ * One browser tab for the whole test, handed to each officer in turn.
+ *
+ * A lifecycle is several people acting on one case in order, and the
+ * recording has to show it as one sequence a person can follow. A context per
+ * officer produced a video per officer, each mostly idle while the others
+ * worked.
+ *
+ * Each officer still acts on their own session: the tab is emptied of the
+ * last officer's sessionStorage and given the next one's before the app boots,
+ * so the API sees a different token exactly as it would from a different
+ * desk. The swap happens on `/favicon.ico` because the app is not running
+ * there, and so nothing can write the previous officer's session back.
+ */
+class Stage {
+  private current: Role | null = null;
+
+  constructor(
+    readonly page: Page,
+    private readonly recording: boolean,
+  ) {}
+
+  get role(): Role | null {
+    return this.current;
+  }
+
+  async signInAs(role: Role): Promise<void> {
+    const session = readFileSync(sessionFile(role), 'utf8');
+    await this.page.goto('/favicon.ico');
+    // Written into the icon's document rather than with setContent(), which
+    // waits for a load event an image document never fires a second time.
+    await this.page.evaluate(
+      ({ stored, who, card }: { stored: string; who: string; card: boolean }) => {
+        window.sessionStorage.clear();
+        for (const [key, value] of Object.entries(JSON.parse(stored) as Record<string, string>)) {
+          window.sessionStorage.setItem(key, value);
+        }
+        if (card) {
+          document.body.setAttribute(
+            'style',
+            'margin:0;display:grid;place-items:center;height:100vh;' +
+              'font:600 28px system-ui,sans-serif;background:#1f3a5f;color:#fff',
+          );
+          document.body.textContent = `Signing in as ${who}`;
+        }
+      },
+      { stored: session, who: role, card: this.recording },
+    );
+    this.current = role;
+    if (this.recording) {
+      // Pacing for the viewer, not a wait on the application.
+      await this.page.waitForTimeout(HANDOVER_PAUSE_MS);
+    }
+  }
+
+  /** Navigate as `role`, and prove the shell agrees about who that is. */
+  async arrive(role: Role, url: string): Promise<void> {
+    await this.page.goto(url);
+    await expect(this.page.locator('.tas-shell__whoami')).toContainText(role, {
+      timeout: 30_000,
+    });
+  }
+}
+
+/** Page members that are safe to read whoever holds the tab. */
+const INERT = new Set([
+  'then',
+  'constructor',
+  'url',
+  'video',
+  'isClosed',
+  'context',
+  'viewportSize',
+]);
+/** Page members that move the tab, and so may hand it over first. */
+const NAVIGATIONS = new Set(['goto', 'reload']);
+
+/**
+ * The page as one officer sees it.
+ *
+ * Navigating through it hands the tab to that officer if somebody else holds
+ * it. Anything else while somebody else holds it is refused rather than
+ * performed: a click that silently landed as the wrong officer would turn a
+ * segregation-of-duties check into a test of the other role.
+ */
+function officerView(stage: Stage, role: Role): Page {
+  return new Proxy(stage.page, {
+    get(target, property) {
+      const value: unknown = Reflect.get(target, property, target);
+      if (typeof property !== 'string' || INERT.has(property)) {
+        return typeof value === 'function' ? value.bind(target) : value;
+      }
+      if (NAVIGATIONS.has(property)) {
+        return async (...args: unknown[]) => {
+          if (stage.role !== role) {
+            await stage.signInAs(role);
+            if (property === 'goto') {
+              return stage.arrive(role, String(args[0]));
+            }
+          }
+          return (value as (...a: unknown[]) => unknown).apply(target, args);
+        };
+      }
+      if (stage.role !== role) {
+        throw new Error(
+          `The ${role} page was used while ${stage.role ?? 'nobody'} holds the tab. ` +
+            'Navigate it first (page.goto), so the hand-over is part of the run.',
+        );
+      }
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
+
 export const test = base.extend<{
-  /** A page signed in as the given role, closed when the test ends. */
+  /** The shared tab, signed in as the given role, closed when the test ends. */
   as: (role: Role) => Promise<Page>;
 }>({
   as: async ({ browser }, use, testInfo) => {
-    const opened: { role: Role; page: Page }[] = [];
     const mode = videoMode(testInfo);
-    const options: BrowserContextOptions =
-      mode === 'off' ? {} : { recordVideo: { dir: testInfo.outputPath('videos') } };
+    const recording = mode !== 'off';
+    const viewport = testInfo.project.use.viewport ?? { width: 1440, height: 900 };
+    const views = new Map<Role, Page>();
+    let stage: Stage | undefined;
 
     await use(async (role: Role) => {
-      const page = await openAs(browser, role, options);
-      opened.push({ role, page });
-      return page;
+      if (stage === undefined) {
+        const context = await browser.newContext({
+          viewport,
+          ...(recording
+            ? { recordVideo: { dir: testInfo.outputPath('videos'), size: viewport } }
+            : {}),
+        });
+        if (recording) {
+          await context.addInitScript(drawCaption);
+        }
+        stage = new Stage(await context.newPage(), recording);
+      }
+      await stage.signInAs(role);
+      await stage.arrive(role, '/');
+
+      let view = views.get(role);
+      if (view === undefined) {
+        view = officerView(stage, role);
+        views.set(role, view);
+      }
+      return view;
     });
 
-    for (const { page } of opened) {
-      await page.context().close();
-    }
+    if (stage === undefined) return;
+    const page = stage.page;
+    await page.context().close();
 
-    // One recording per officer, named for them: a lifecycle run is six
-    // people taking turns, and "video-3" says nothing about whose turn broke.
-    const keep = keepVideo(mode, testInfo);
-    for (const [index, { role, page }] of opened.entries()) {
-      const path = await page.video()?.path();
-      if (path === undefined) continue;
-      if (keep) {
-        // attach() copies into the test's attachments, so the original would
-        // otherwise sit beside it as an unnamed duplicate.
-        await testInfo.attach(`video ${index + 1} - ${role}`, { path, contentType: 'video/webm' });
-      }
-      rmSync(path, { force: true });
+    const path = await page.video()?.path();
+    if (path === undefined) return;
+    if (keepVideo(mode, testInfo)) {
+      // attach() copies into the test's attachments, so the original would
+      // otherwise sit beside it as an unnamed duplicate.
+      await testInfo.attach('video', { path, contentType: 'video/webm' });
     }
+    rmSync(path, { force: true });
   },
 });
 

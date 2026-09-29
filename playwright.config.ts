@@ -26,6 +26,9 @@ import { defineConfig, devices } from '@playwright/test';
  * CI provisions Postgres and Redis today and not the rest. The gap is stated
  * in `docs/testing.md` rather than papered over with a skipped job.
  */
+const VIEWPORT = { width: 1440, height: 900 };
+const SLOW_MO_MS = Number(process.env['E2E_SLOW_MO'] ?? 400);
+
 export default defineConfig({
   testDir: './apps/web/e2e',
 
@@ -50,7 +53,9 @@ export default defineConfig({
   retries: 0,
   forbidOnly: !!process.env['CI'],
 
-  timeout: 60_000,
+  // Scaled with the pace below: a journey slowed for the eye takes longer, and
+  // a timeout sized for the unpaced run would fail it for being watchable.
+  timeout: 60_000 + SLOW_MO_MS * 300,
   expect: { timeout: 10_000 },
 
   reporter: process.env['CI'] ? [['github'], ['list']] : [['list'], ['html', { open: 'never' }]],
@@ -63,12 +68,17 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     // Unlike traces, kept for passing runs too: a few megabytes per test, and
     // a recording of an officer's journey going right is the evidence a
-    // reviewer asks for when the run is the proof a change works.
-    video: 'on',
+    // reviewer asks for when the run is the proof a change works. One per
+    // test, at the viewport's own size: see the `as` fixture.
+    video: { mode: 'on', size: VIEWPORT },
     actionTimeout: 15_000,
     // The screens are dense; a small viewport hides the action bar and makes
     // failures look like missing features.
-    viewport: { width: 1440, height: 900 },
+    viewport: VIEWPORT,
+    // Every action waits this long first, so the recording can be followed by
+    // a person rather than scrubbed frame by frame. E2E_SLOW_MO=0 for a
+    // quick local check.
+    launchOptions: { slowMo: SLOW_MO_MS },
   },
 
   projects: [
@@ -84,7 +94,9 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      // The device profile carries its own 1280x720 viewport, which silently
+      // replaced the one above; restated so the tests see the screen it says.
+      use: { ...devices['Desktop Chrome'], viewport: VIEWPORT },
       dependencies: ['setup'],
     },
   ],
