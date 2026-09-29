@@ -80,7 +80,7 @@ services:
         condition: service_healthy
 
   minio:
-    image: minio/minio:latest
+    image: alpine/minio:RELEASE.2025-10-15T17-29-55Z
     container_name: tas-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
