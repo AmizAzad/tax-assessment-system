@@ -61,7 +61,10 @@ export default defineConfig({
     // reads, and the one that matters is the one that broke.
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    // Unlike traces, kept for passing runs too: a few megabytes per test, and
+    // a recording of an officer's journey going right is the evidence a
+    // reviewer asks for when the run is the proof a change works.
+    video: 'on',
     actionTimeout: 15_000,
     // The screens are dense; a small viewport hides the action bar and makes
     // failures look like missing features.
