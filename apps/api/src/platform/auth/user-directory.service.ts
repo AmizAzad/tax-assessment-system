@@ -60,7 +60,49 @@ export class UserDirectoryService {
       return user;
     }
 
-    return this.provision(token);
+    return (await this.claimPending(token)) ?? this.provision(token);
+  }
+
+  /**
+   * Bind a row seeded before its user first signed in.
+   *
+   * A migration that links a user to something — a taxpayer, a delegation —
+   * needs the row before the IdP has issued a subject, so it writes
+   * `pending:<username>`. Only that marker is claimed: matching on username
+   * alone would rebind a row already held by another subject to whoever holds
+   * the username now.
+   */
+  private async claimPending(token: VerifiedToken): Promise<LocalUser | undefined> {
+    const claimed = await this.sequelize.query<{
+      id: string;
+      username: string;
+      display_name: string;
+    }>(
+      `UPDATE platform.app_user
+          SET external_subject = :subject,
+              updated_at       = CURRENT_TIMESTAMP
+        WHERE username = :username
+          AND external_subject = 'pending:' || :username
+    RETURNING id, username, display_name`,
+      {
+        type: QueryTypes.SELECT,
+        replacements: { subject: token.subject, username: token.username },
+      },
+    );
+
+    const row = claimed[0];
+    if (row === undefined) {
+      return undefined;
+    }
+
+    this.logger.log(`Bound pre-provisioned user ${token.username} to its IdP subject`);
+    const user: LocalUser = {
+      id: Number(row.id),
+      username: row.username,
+      displayName: row.display_name,
+    };
+    this.cache.set(token.subject, user);
+    return user;
   }
 
   private async provision(token: VerifiedToken): Promise<LocalUser> {
