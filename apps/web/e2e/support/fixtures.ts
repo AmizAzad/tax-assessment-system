@@ -1,5 +1,12 @@
-import { test as base, expect, type Browser, type Page } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import {
+  test as base,
+  expect,
+  type Browser,
+  type BrowserContextOptions,
+  type Page,
+  type TestInfo,
+} from '@playwright/test';
+import { readFileSync, rmSync } from 'node:fs';
 import { PASSWORD, sessionFile, type Role } from './session';
 
 const KEYCLOAK = process.env['E2E_KEYCLOAK'] ?? 'http://localhost:8085';
@@ -24,8 +31,12 @@ const API = process.env['E2E_API'] ?? 'http://localhost:3000';
  * login performed after load would test a different path from the one a
  * person takes.
  */
-export async function openAs(browser: Browser, role: Role): Promise<Page> {
-  const context = await browser.newContext();
+export async function openAs(
+  browser: Browser,
+  role: Role,
+  options: BrowserContextOptions = {},
+): Promise<Page> {
+  const context = await browser.newContext(options);
   const session = readFileSync(sessionFile(role), 'utf8');
 
   await context.addInitScript((stored: string) => {
@@ -148,21 +159,58 @@ export async function freeAssessmentYear(taxpayerTin = '1234567890'): Promise<st
   throw new Error('No free assessment year left; clean the test cases out of the register.');
 }
 
+/**
+ * The configured `video` mode, applied to contexts this suite opens itself.
+ *
+ * Playwright records only the context behind its own `page` fixture. Every
+ * officer here gets a fresh context from `browser.newContext()`, so without
+ * this the setting in the config recorded the sign-in and nothing after it.
+ */
+function videoMode(testInfo: TestInfo): string {
+  const video = testInfo.project.use.video;
+  return (typeof video === 'object' ? video.mode : video) ?? 'off';
+}
+
+function keepVideo(mode: string, testInfo: TestInfo): boolean {
+  const failed = testInfo.status !== testInfo.expectedStatus;
+  if (mode === 'on') return true;
+  if (mode === 'retain-on-failure') return failed;
+  if (mode === 'on-first-retry') return testInfo.retry === 1;
+  return false;
+}
+
 export const test = base.extend<{
   /** A page signed in as the given role, closed when the test ends. */
   as: (role: Role) => Promise<Page>;
 }>({
-  as: async ({ browser }, use) => {
-    const opened: Page[] = [];
+  as: async ({ browser }, use, testInfo) => {
+    const opened: { role: Role; page: Page }[] = [];
+    const mode = videoMode(testInfo);
+    const options: BrowserContextOptions =
+      mode === 'off' ? {} : { recordVideo: { dir: testInfo.outputPath('videos') } };
 
     await use(async (role: Role) => {
-      const page = await openAs(browser, role);
-      opened.push(page);
+      const page = await openAs(browser, role, options);
+      opened.push({ role, page });
       return page;
     });
 
-    for (const page of opened) {
+    for (const { page } of opened) {
       await page.context().close();
+    }
+
+    // One recording per officer, named for them: a lifecycle run is six
+    // people taking turns, and "video-3" says nothing about whose turn broke.
+    const keep = keepVideo(mode, testInfo);
+    for (const [index, { role, page }] of opened.entries()) {
+      const path = await page.video()?.path();
+      if (path === undefined) continue;
+      if (keep) {
+        // attach() copies into the test's attachments, so the original would
+        // otherwise sit beside it as an unnamed duplicate.
+        await testInfo.attach(`video ${index + 1} - ${role}`, { path, contentType: 'video/webm' });
+      }
+      rmSync(path, { force: true });
     }
   },
 });
