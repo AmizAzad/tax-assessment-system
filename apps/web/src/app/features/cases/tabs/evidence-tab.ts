@@ -11,7 +11,15 @@ import {
 import { DatePipe } from '@angular/common';
 import { AssessmentService } from '../../../core/assessment.service';
 import type { EvidenceSnapshot } from '../../../core/domain';
-import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '../../../shared/ui';
+import {
+  AmountPipe,
+  EmptyState,
+  ErrorAlert,
+  HumanisePipe,
+  StatusBadge,
+  describeError,
+} from '../../../shared/ui';
+import { canRetrieveEvidenceFrom, isNotFound } from './case-rules';
 
 /**
  * The evidence snapshot a case is assessed on.
@@ -31,7 +39,7 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
   selector: 'tas-case-evidence',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, AmountPipe, StatusBadge, EmptyState, ErrorAlert],
+  imports: [DatePipe, AmountPipe, StatusBadge, HumanisePipe, EmptyState, ErrorAlert],
   template: `
     <tas-error [message]="error()" />
 
@@ -44,15 +52,23 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
             assessment was prepared from.
           </p>
         </div>
-        <button
-          type="button"
-          class="tas-btn tas-btn--primary"
-          [disabled]="busy()"
-          (click)="refresh()"
-        >
-          {{ busy() ? 'Retrieving…' : 'Retrieve evidence' }}
-        </button>
+        @if (canRetrieve && retrievable()) {
+          <button
+            type="button"
+            class="tas-btn tas-btn--primary"
+            [disabled]="busy()"
+            (click)="refresh()"
+          >
+            {{ busy() ? 'Retrieving…' : 'Retrieve evidence' }}
+          </button>
+        }
       </div>
+      @if (canRetrieve && !retrievable()) {
+        <p class="tas-muted" style="margin:0">
+          Frozen at {{ status | tasHumanise }}. Evidence can be retrieved again only while the case
+          is being prepared, or while a served notice awaits the taxpayer's response.
+        </p>
+      }
 
       @if (lastRun(); as run) {
         <div
@@ -105,7 +121,7 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
               <tr>
                 <th>Concept</th>
                 <th>Source</th>
-                <th style="text-align:end">Declared</th>
+                <th class="tas-amount">Declared</th>
               </tr>
             </thead>
             <tbody>
@@ -170,7 +186,13 @@ export class CaseEvidence implements OnInit {
 
   @Input({ required: true }) caseId!: number;
   @Input() status = '';
+  /** Whether the caller holds the refresh route. */
+  @Input() canRetrieve = false;
   @Output() readonly changed = new EventEmitter<void>();
+
+  retrievable(): boolean {
+    return canRetrieveEvidenceFrom(this.status);
+  }
 
   readonly snapshot = signal<EvidenceSnapshot | null>(null);
   readonly lastRun = signal<Awaited<ReturnType<AssessmentService['refreshEvidence']>> | null>(null);
@@ -185,11 +207,15 @@ export class CaseEvidence implements OnInit {
   async load(): Promise<void> {
     this.loading.set(true);
     try {
-      this.snapshot.set(await this.assessment.evidence(this.caseId));
-    } catch {
-      // A 404 here is the normal state of a new case, not a failure worth
-      // showing: the empty state below says it better.
+      this.snapshot.set((await this.assessment.evidence(this.caseId)) ?? null);
+    } catch (error) {
+      // "Nothing retrieved yet" is the normal state of a new case, answered as
+      // a 404 or as an empty body, and the empty state below says it better
+      // than an alert. Anything else is a failure the officer needs to see.
       this.snapshot.set(null);
+      if (!isNotFound(error)) {
+        this.error.set(describeError(error));
+      }
     } finally {
       this.loading.set(false);
     }

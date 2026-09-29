@@ -11,9 +11,17 @@ import {
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AssessmentService } from '../../../core/assessment.service';
+import { AuthService } from '../../../core/auth.service';
 import { APP_CONFIG } from '../../../core/config';
 import type { Notice } from '../../../core/domain';
-import { EmptyState, ErrorAlert, StatusBadge, describeError } from '../../../shared/ui';
+import {
+  EmptyState,
+  ErrorAlert,
+  HumanisePipe,
+  StatusBadge,
+  describeError,
+} from '../../../shared/ui';
+import { canIssueNoticeFrom } from './case-rules';
 
 /**
  * Notices: issue, verify, serve, and prove.
@@ -37,7 +45,7 @@ import { EmptyState, ErrorAlert, StatusBadge, describeError } from '../../../sha
   selector: 'tas-case-notices',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, DatePipe, StatusBadge, EmptyState, ErrorAlert],
+  imports: [FormsModule, DatePipe, StatusBadge, HumanisePipe, EmptyState, ErrorAlert],
   template: `
     <tas-error [message]="error()" />
 
@@ -51,21 +59,29 @@ import { EmptyState, ErrorAlert, StatusBadge, describeError } from '../../../sha
             one.
           </p>
         </div>
-        <div class="tas-row">
-          <select [(ngModel)]="noticeType" class="tas-btn">
-            <option value="ASSESSMENT">Assessment</option>
-            <option value="DEMAND">Demand</option>
-          </select>
-          <button
-            type="button"
-            class="tas-btn tas-btn--primary"
-            [disabled]="busy()"
-            (click)="generate()"
-          >
-            Issue notice
-          </button>
-        </div>
+        @if (canIssue()) {
+          <div class="tas-row">
+            <select [(ngModel)]="noticeType" class="tas-btn" aria-label="Notice type">
+              <option value="ASSESSMENT">Assessment</option>
+              <option value="DEMAND">Demand</option>
+            </select>
+            <button
+              type="button"
+              class="tas-btn tas-btn--primary"
+              [disabled]="busy()"
+              (click)="generate()"
+            >
+              Issue notice
+            </button>
+          </div>
+        }
       </div>
+      @if (holdsIssue() && !canIssueNoticeFrom(status)) {
+        <p class="tas-muted" style="margin:0">
+          Not yet: this assessment is {{ status | tasHumanise }}. A notice can be issued once it has
+          been finalised.
+        </p>
+      }
     </div>
 
     @if (rows().length === 0) {
@@ -149,7 +165,7 @@ import { EmptyState, ErrorAlert, StatusBadge, describeError } from '../../../sha
                         {{ attempt.failureReason }}
                       </div>
                     }
-                    @if (attempt.status === 'DISPATCHED') {
+                    @if (attempt.status === 'DISPATCHED' && canRecordOutcome()) {
                       <div class="tas-row" style="margin-block-start:0.35rem">
                         <button
                           type="button"
@@ -174,51 +190,76 @@ import { EmptyState, ErrorAlert, StatusBadge, describeError } from '../../../sha
           </table>
         }
 
-        <div class="tas-grid" style="margin-block-start:1rem">
-          <div class="tas-field">
-            <label [attr.for]="'ch-' + notice.uuid">Channel</label>
-            <select [attr.id]="'ch-' + notice.uuid" [(ngModel)]="channel">
-              <option value="EMAIL">Email</option>
-              <option value="PORTAL">Portal</option>
-              <option value="SMS">SMS</option>
-              <option value="REGISTERED_POST">Registered post</option>
-              <option value="HAND_DELIVERY">Hand delivery</option>
-              <option value="PUBLICATION">Publication</option>
-            </select>
+        @if (canServe(notice.status)) {
+          <div class="tas-grid" style="margin-block-start:1rem">
+            <div class="tas-field">
+              <label [attr.for]="'ch-' + notice.uuid">Channel</label>
+              <select [attr.id]="'ch-' + notice.uuid" [(ngModel)]="channel">
+                <option value="EMAIL">Email</option>
+                <option value="PORTAL">Portal</option>
+                <option value="SMS">SMS</option>
+                <option value="REGISTERED_POST">Registered post</option>
+                <option value="HAND_DELIVERY">Hand delivery</option>
+                <option value="PUBLICATION">Publication</option>
+              </select>
+            </div>
+            <div class="tas-field">
+              <label [attr.for]="'ad-' + notice.uuid">Addressee</label>
+              <input [attr.id]="'ad-' + notice.uuid" [(ngModel)]="addressee" />
+            </div>
+            <div class="tas-field">
+              <label [attr.for]="'pr-' + notice.uuid">Proof reference</label>
+              <input
+                [attr.id]="'pr-' + notice.uuid"
+                [(ngModel)]="proofReference"
+                placeholder="Tracking number"
+              />
+            </div>
           </div>
-          <div class="tas-field">
-            <label [attr.for]="'ad-' + notice.uuid">Addressee</label>
-            <input [attr.id]="'ad-' + notice.uuid" [(ngModel)]="addressee" />
+          <div class="tas-row" style="margin-block-start:0.75rem">
+            <button
+              type="button"
+              class="tas-btn tas-btn--primary"
+              [disabled]="busy()"
+              (click)="serve(notice.uuid)"
+            >
+              Serve
+            </button>
           </div>
-          <div class="tas-field">
-            <label [attr.for]="'pr-' + notice.uuid">Proof reference</label>
-            <input
-              [attr.id]="'pr-' + notice.uuid"
-              [(ngModel)]="proofReference"
-              placeholder="Tracking number"
-            />
-          </div>
-        </div>
-        <div class="tas-row" style="margin-block-start:0.75rem">
-          <button
-            type="button"
-            class="tas-btn tas-btn--primary"
-            [disabled]="busy()"
-            (click)="serve(notice.uuid)"
-          >
-            Serve
-          </button>
-        </div>
+        }
       </div>
     }
   `,
 })
 export class CaseNotices implements OnInit {
   private readonly assessment = inject(AssessmentService);
+  private readonly auth = inject(AuthService);
 
   @Input({ required: true }) caseId!: number;
   @Input() status = '';
   @Output() readonly changed = new EventEmitter<void>();
+
+  readonly canIssueNoticeFrom = canIssueNoticeFrom;
+
+  holdsIssue(): boolean {
+    return this.auth.canInvoke('POST', '/api/v1/cases/:id/notices');
+  }
+
+  canIssue(): boolean {
+    return this.holdsIssue() && canIssueNoticeFrom(this.status);
+  }
+
+  /** The delivery service refuses to serve a notice in any of these. */
+  canServe(noticeStatus: string): boolean {
+    return (
+      this.auth.canInvoke('POST', '/api/v1/notices/:uuid/serve') &&
+      !['DRAFT', 'CANCELLED', 'SUPERSEDED'].includes(noticeStatus)
+    );
+  }
+
+  canRecordOutcome(): boolean {
+    return this.auth.canInvoke('POST', '/api/v1/notices/:uuid/service/:serviceId/outcome');
+  }
 
   readonly rows = signal<readonly Notice[]>([]);
   readonly error = signal<string | null>(null);
