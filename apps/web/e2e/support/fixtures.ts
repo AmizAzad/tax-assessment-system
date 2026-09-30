@@ -172,6 +172,72 @@ function keepVideo(mode: string, testInfo: TestInfo): boolean {
   return false;
 }
 
+const BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:4200';
+
+/**
+ * Each officer's latest session, carried between hand-overs and tests.
+ *
+ * Seeded from the files the sign-in setup wrote. Those age: access tokens
+ * last fifteen minutes, and a run that reached the full cycle after that
+ * handed the tab over with an expired token, so the app sent the officer to
+ * the login page in the middle of a step.
+ */
+const sessions = new Map<Role, string>();
+
+/** When the oidc user in a stored session stops being accepted, in ms. */
+function liveUntil(stored: string): number {
+  const entries = JSON.parse(stored) as Record<string, string>;
+  const key = Object.keys(entries).find((k) => k.startsWith('oidc.user:'));
+  if (key === undefined) return 0;
+  const user = JSON.parse(entries[key]!) as { expires_at?: number };
+  return (user.expires_at ?? 0) * 1000;
+}
+
+/**
+ * A session for `role` that will outlast the next step.
+ *
+ * Refreshed at Keycloak with the session's own refresh token when it is
+ * about to expire — what the app itself does silently while it runs. Null
+ * when even the refresh token has lapsed, and only the login form will do.
+ */
+async function freshSession(role: Role): Promise<string | null> {
+  const stored = sessions.get(role) ?? readFileSync(sessionFile(role), 'utf8');
+  if (liveUntil(stored) > Date.now() + 120_000) return stored;
+
+  const entries = JSON.parse(stored) as Record<string, string>;
+  const key = Object.keys(entries).find((k) => k.startsWith('oidc.user:'));
+  if (key === undefined) return null;
+  const user = JSON.parse(entries[key]!) as Record<string, unknown>;
+  if (typeof user['refresh_token'] !== 'string') return null;
+
+  const response = await fetch(`${KEYCLOAK}/realms/tax-assessment/protocol/openid-connect/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: 'tas-web',
+      grant_type: 'refresh_token',
+      refresh_token: user['refresh_token'],
+    }),
+  });
+  if (!response.ok) return null;
+  const tokens = (await response.json()) as {
+    access_token: string;
+    refresh_token?: string;
+    id_token?: string;
+    expires_in: number;
+  };
+  const renewed = {
+    ...user,
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token ?? user['refresh_token'],
+    id_token: tokens.id_token ?? user['id_token'],
+    expires_at: Math.floor(Date.now() / 1000) + tokens.expires_in,
+  };
+  const session = JSON.stringify({ ...entries, [key]: JSON.stringify(renewed) });
+  sessions.set(role, session);
+  return session;
+}
+
 /** How long the hand-over card stays up in a recording, so a viewer can read it. */
 const HANDOVER_PAUSE_MS = 1_500;
 
@@ -237,8 +303,13 @@ class Stage {
   }
 
   async signInAs(role: Role): Promise<void> {
-    const session = readFileSync(sessionFile(role), 'utf8');
+    await this.keepCurrentSession();
+    const session = await freshSession(role);
     await this.page.goto('/favicon.ico');
+    if (session === null) {
+      await this.signInThroughTheForm(role);
+      return;
+    }
     // Written into the icon's document rather than with setContent(), which
     // waits for a load event an image document never fires a second time.
     await this.page.evaluate(
@@ -263,6 +334,38 @@ class Stage {
       // Pacing for the viewer, not a wait on the application.
       await this.page.waitForTimeout(HANDOVER_PAUSE_MS);
     }
+  }
+
+  /**
+   * Take the outgoing officer's session with them.
+   *
+   * The app renews its token silently while it runs, so the storage it leaves
+   * behind is newer than anything saved at setup. Only a live session is
+   * kept: a tab that has already bounced to the login page holds nothing
+   * worth reusing.
+   */
+  private async keepCurrentSession(): Promise<void> {
+    if (this.current === null || !this.page.url().startsWith(new URL('/', BASE_URL).href)) return;
+    const stored = await this.page
+      .evaluate(() => JSON.stringify(window.sessionStorage))
+      .catch(() => null);
+    if (stored !== null && liveUntil(stored) > Date.now()) {
+      sessions.set(this.current, stored);
+    }
+  }
+
+  /** The real login form, for a session too old even to refresh. */
+  private async signInThroughTheForm(role: Role): Promise<void> {
+    await this.page.evaluate(() => window.sessionStorage.clear());
+    await this.page.goto('/');
+    await this.page.locator('#username').fill(role);
+    await this.page.locator('#password').fill(PASSWORD);
+    await this.page.locator('#kc-login').click();
+    await expect(this.page.locator('.tas-shell__whoami')).toContainText(role, {
+      timeout: 30_000,
+    });
+    this.current = role;
+    await this.keepCurrentSession();
   }
 
   /** Navigate as `role`, and prove the shell agrees about who that is. */

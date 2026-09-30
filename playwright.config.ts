@@ -55,7 +55,9 @@ export default defineConfig({
 
   // Scaled with the pace below: a journey slowed for the eye takes longer, and
   // a timeout sized for the unpaced run would fail it for being watchable.
-  timeout: 60_000 + SLOW_MO_MS * 300,
+  // The base allows for the engine: with a process deployed, every transition
+  // also messages it, and the six-officer lifecycle takes well over a minute.
+  timeout: 180_000 + SLOW_MO_MS * 300,
   expect: { timeout: 10_000 },
 
   reporter: process.env['CI'] ? [['github'], ['list']] : [['list'], ['html', { open: 'never' }]],
