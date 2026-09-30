@@ -89,22 +89,47 @@
     }
   }
 
+  // The colour is stated because a button does not inherit it: without it
+  // the label took the browser's own button text, near-black, which vanished
+  // on the dark theme's surface.
   &__item {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     width: 100%;
+    min-height: 2rem;
     text-align: start;
     font: inherit;
     font-size: 0.85rem;
-    padding: 0.35rem 0.5rem;
-    margin-bottom: 0.2rem;
+    line-height: 1.2;
+    padding: 0.35rem 0.6rem;
+    margin-bottom: 0.25rem;
     border: 1px solid var(--tas-border);
     border-radius: 4px;
     background: var(--tas-surface);
+    color: var(--tas-text);
     cursor: pointer;
+
+    // Decorative: the empty alternative keeps it out of the accessible name.
+    &::before {
+      content: '+' / '';
+      font-weight: 600;
+      color: var(--tas-text-muted);
+    }
 
     &:hover {
       background: var(--tas-surface-muted);
       border-color: var(--tas-primary);
+      color: var(--tas-text-strong);
+    }
+
+    &:active {
+      background: var(--tas-border);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--tas-primary);
+      outline-offset: 1px;
     }
   }
 
