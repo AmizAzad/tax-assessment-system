@@ -1,7 +1,15 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AssessmentService } from '../../core/assessment.service';
-import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '../../shared/ui';
+import { AuthService } from '../../core/auth.service';
+import {
+  AmountPipe,
+  EmptyState,
+  ErrorAlert,
+  HumanisePipe,
+  StatusBadge,
+  describeError,
+} from '../../shared/ui';
 
 /**
  * Rule sets, and the simulator.
@@ -24,7 +32,7 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
   selector: 'tas-rule-sets',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, AmountPipe, StatusBadge, EmptyState, ErrorAlert],
+  imports: [FormsModule, AmountPipe, HumanisePipe, StatusBadge, EmptyState, ErrorAlert],
   template: `
     <div class="tas-page-head">
       <div>
@@ -50,7 +58,7 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
               <th>Version</th>
               <th>Status</th>
               <th>Effective</th>
-              <th>Currency</th>
+              <th class="tas-amount">Items</th>
               <th></th>
             </tr>
           </thead>
@@ -60,15 +68,15 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
                 <td>
                   <code>{{ row['code'] }}</code>
                 </td>
-                <td>{{ row['jurisdiction_code'] }} {{ row['tax_type_code'] }}</td>
+                <td>{{ row['jurisdictionCode'] }} {{ row['taxTypeCode'] }}</td>
                 <td>{{ row['version'] }}</td>
                 <td><tas-status [status]="text(row['status'])" /></td>
                 <td class="tas-muted">
-                  {{ row['effective_from'] }} → {{ row['effective_to'] ?? 'open' }}
+                  {{ row['effectiveFrom'] }} → {{ row['effectiveTo'] ?? 'open' }}
                 </td>
-                <td>{{ row['currency_code'] }}</td>
+                <td class="tas-amount">{{ row['itemCount'] }}</td>
                 <td>
-                  @if (text(row['status']) === 'DRAFT') {
+                  @if (text(row['status']) === 'DRAFT' && canSimulate()) {
                     <button type="button" class="tas-btn" (click)="simulate(num(row['id']))">
                       Simulate
                     </button>
@@ -130,9 +138,9 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
           <thead>
             <tr>
               <th>Case</th>
-              <th style="text-align:end">Now</th>
-              <th style="text-align:end">Under the draft</th>
-              <th style="text-align:end">Movement</th>
+              <th class="tas-amount">Now</th>
+              <th class="tas-amount">Under the draft</th>
+              <th class="tas-amount">Movement</th>
             </tr>
           </thead>
           <tbody>
@@ -152,9 +160,9 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
           <thead>
             <tr>
               <th>Case</th>
-              <th style="text-align:end">Now</th>
-              <th style="text-align:end">Under the draft</th>
-              <th style="text-align:end">Movement</th>
+              <th class="tas-amount">Now</th>
+              <th class="tas-amount">Under the draft</th>
+              <th class="tas-amount">Movement</th>
             </tr>
           </thead>
           <tbody>
@@ -196,7 +204,7 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
             @for (template of templates(); track $index) {
               <tr>
                 <td>{{ template['jurisdiction_code'] }}</td>
-                <td>{{ template['notice_type'] }}</td>
+                <td>{{ text(template['notice_type']) | tasHumanise }}</td>
                 <td>{{ template['language_code'] }}</td>
                 <td><tas-status [status]="text(template['status'])" /></td>
                 <td class="tas-muted">{{ template['title_template'] }}</td>
@@ -210,6 +218,7 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
 })
 export class RuleSets implements OnInit {
   private readonly assessment = inject(AssessmentService);
+  private readonly auth = inject(AuthService);
 
   readonly rows = signal<readonly Record<string, unknown>[]>([]);
   readonly templates = signal<readonly Record<string, unknown>[]>([]);
@@ -233,6 +242,15 @@ export class RuleSets implements OnInit {
     } catch (error) {
       this.error.set(describeError(error));
     }
+  }
+
+  /**
+   * Replaying a draft over historic cases is an administrator's act, and the
+   * route is FULL-level. Everyone who can read the rule sets was offered the
+   * button and refused on pressing it.
+   */
+  canSimulate(): boolean {
+    return this.auth.canInvoke('POST', '/api/v1/rule-sets/:id/simulate');
   }
 
   text(value: unknown): string {

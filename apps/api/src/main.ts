@@ -71,7 +71,9 @@ async function bootstrap(): Promise<void> {
     origin: config.allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-Correlation-Id'],
+    // X-Jurisdiction selects which jurisdiction's reference data a screen
+    // reads; without it here a cross-origin deployment fails the preflight.
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Correlation-Id', 'X-Jurisdiction'],
     exposedHeaders: ['X-Correlation-Id', 'Content-Disposition'],
     maxAge: 600,
   });

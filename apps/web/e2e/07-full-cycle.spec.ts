@@ -5,6 +5,7 @@ import type { Page } from '@playwright/test';
 import { QueryTypes, Sequelize } from 'sequelize';
 import { EvidenceRecorder } from './support/evidence';
 import {
+  apiAttempt,
   apiGet,
   apiStatus,
   apiToken,
@@ -221,7 +222,7 @@ async function fileAndAdmitObjection(cast: Cast, c: CaseUnderTest, summary: stri
   await bench.tab('Disputes');
 
   await officer.locator('#obj-summary').fill(summary);
-  await officer.locator('#obj-ground').fill('FACTUAL_ERROR');
+  await officer.locator('#obj-ground').selectOption('FACTUAL_ERROR');
   await officer.locator('#obj-disputed').fill('40000.00');
   await officer.locator('#obj-channel').selectOption('POST');
   await officer.getByRole('button', { name: 'File objection' }).click();
@@ -263,7 +264,7 @@ async function fileAppeal(cast: Cast, c: CaseUnderTest, grounds: string): Promis
   const bench = await workbenchFor(cast, 'appeals-officer', c);
   await bench.tab('Disputes');
 
-  await officer.locator('#app-forum').fill('FIRST_TIER_TRIBUNAL');
+  await officer.locator('#app-forum').selectOption('FIRST_TIER_TRIBUNAL');
   await officer.locator('#app-ref').fill(`FTT/2026/${c.caseNumber}`);
   await officer.locator('#app-grounds').fill(grounds);
   await officer.getByRole('button', { name: 'File appeal' }).click();
@@ -273,9 +274,9 @@ async function fileAppeal(cast: Cast, c: CaseUnderTest, grounds: string): Promis
 /**
  * Transcribe what the forum held.
  *
- * The appeal's uuid is read from the API because the panel asks for it and
- * shows only the appeal number. That is a wart on the screen rather than a
- * shortcut around it: the outcome is still recorded by filling this form.
+ * The appeal is chosen from the case's undecided appeals by its identifier,
+ * read from the API only to know which option to pick; the outcome is still
+ * recorded by filling this form.
  */
 async function recordAppealOutcome(
   cast: Cast,
@@ -290,9 +291,8 @@ async function recordAppealOutcome(
   const bench = await workbenchFor(cast, 'appeals-officer', c);
   await bench.tab('Disputes');
 
-  const row = officer.locator('.tas-row').filter({ has: officer.getByPlaceholder('Appeal uuid') });
-  await row.locator('select').selectOption(outcome);
-  await officer.getByPlaceholder('Appeal uuid').fill(appeals[0]!.uuid);
+  await officer.locator('#app-outcome-appeal').selectOption(appeals[0]!.uuid);
+  await officer.locator('#app-outcome').selectOption(outcome);
   await officer.locator('#app-outcome-reason').fill(reason);
   await officer.getByRole('button', { name: 'Record outcome' }).click();
 }
@@ -339,7 +339,7 @@ async function closeCase(
 ): Promise<void> {
   const bench = await workbenchFor(cast, 'supervisor', c);
   await bench.tab('Closure');
-  await cast.supervisor.locator('#close-reason').fill(reasonCode);
+  await cast.supervisor.locator('#close-reason').selectOption(reasonCode);
   await cast.supervisor.locator('#close-retention').selectOption('STATUTORY');
   await cast.supervisor.locator('#close-narrative').fill(narrative);
   await cast.supervisor.getByRole('button', { name: 'Close case' }).click();
@@ -780,7 +780,17 @@ test.describe('a documented assessment', () => {
       await page.goto(caseUrl);
       const workbench = new Workbench(page);
 
-      await workbench.actAndExpectRefusal('Accept', /TA_REVIEWER|reviewer|not the assessor/i);
+      await workbench.expectStatus('Under review');
+      await expect(page.getByRole('button', { name: 'Accept', exact: true })).toHaveCount(0);
+
+      // The screen no longer offers the shortcut, so the attempt is made where
+      // somebody determined would make it: straight at the API.
+      const refused = await apiAttempt('assessor', `/cases/${caseId}/transition`, {
+        action: 'ACCEPT',
+      });
+      expect(refused.status, 'the server refuses the assessor their own review').toBe(403);
+      expect(refused.message).toMatch(/TA_REVIEWER|reviewer|not the assessor/i);
+      await page.reload();
       await workbench.expectStatus('Under review');
 
       await recorder.capture(page, {
@@ -790,11 +800,12 @@ test.describe('a documented assessment', () => {
         transition: null,
         kind: 'refusal',
         description:
-          'The assessor presses Accept on the case they just wrote. The server refuses and names ' +
-          'the role that may act. Segregation of duties is not a feature anybody can see working; ' +
-          'it is only visible when somebody tries the shortcut and is stopped.',
+          'The assessor opens the case they just wrote and is offered no Accept. Trying it ' +
+          'anyway, straight at the API, is refused with a message naming the role that may act: ' +
+          `"${refused.message}". Segregation of duties is only visible when somebody tries the ` +
+          'shortcut and is stopped.',
         expected:
-          'A red alert quotes the server: the action requires a reviewer, and the status has not moved.',
+          'No Accept button for the assessor, the API answers 403 naming the reviewer, and the status has not moved.',
         statusAfter: await workbench.status(),
       });
     });
@@ -946,6 +957,10 @@ test.describe('a documented assessment', () => {
       await page.goto(caseUrl);
       const workbench = new Workbench(page);
 
+      // Drawn from the loaded case, so asserting an absence before it loads
+      // would pass on an empty page.
+      await workbench.expectStatus('Pending approval');
+
       // Not merely hidden. The API refuses it too; the screen agreeing with
       // the server is what stops officers learning to expect errors.
       await expect(page.getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0);
@@ -1023,10 +1038,17 @@ test.describe('a documented assessment', () => {
       const workbench = new Workbench(page);
       await workbench.tab('Notices');
 
-      await page.getByRole('button', { name: 'Issue notice' }).click();
-      await expect(page.locator('.tas-alert--danger').first()).toContainText(/finalised/i, {
-        timeout: 20_000,
+      // The tab says when a notice becomes possible instead of offering one
+      // the server would refuse; the refusal is asserted at the API.
+      await expect(page.getByRole('button', { name: 'Issue notice' })).toHaveCount(0);
+      await expect(page.locator('.tas-card').filter({ hasText: 'Notices' }).first()).toContainText(
+        /finalised/i,
+      );
+      const refused = await apiAttempt('notice-issuer', `/cases/${caseId}/notices`, {
+        noticeType: 'ASSESSMENT',
       });
+      expect(refused.status, 'the server refuses a notice before finalisation').toBe(409);
+      expect(refused.message).toMatch(/finalis/i);
 
       await recorder.capture(page, {
         id: 'notice-refused-before-finalisation',
@@ -1035,12 +1057,13 @@ test.describe('a documented assessment', () => {
         transition: null,
         kind: 'refusal',
         description:
-          'The notice issuer tries to issue the assessment notice on the approved case and is ' +
-          'refused. A notice gives legal effect to a determination, so it may only be issued ' +
+          'The notice issuer opens the approved case and is told a notice can be issued once the ' +
+          'assessment is finalised; trying anyway at the API is refused. A notice gives legal ' +
+          'effect to a determination, so it may only be issued ' +
           'from a finalised one. Finalisation is the point of no return: it consumes the losses ' +
           'the calculation relied on and stops the figures being recomputed.',
         expected:
-          'A red alert quotes the server: the notice may only be issued once the assessment is finalised.',
+          'No Issue notice button, the tab says it waits for finalisation, and the API refuses with 409.',
         statusAfter: await workbench.status(),
       });
     });
@@ -1198,7 +1221,7 @@ test.describe('a documented assessment', () => {
       await page
         .locator('#obj-summary')
         .fill('The third-party revenue figure double counts intra-group sales already declared.');
-      await page.locator('#obj-ground').fill('FACTUAL_ERROR');
+      await page.locator('#obj-ground').selectOption('FACTUAL_ERROR');
       await page.locator('#obj-disputed').fill('40000.00');
       await page.locator('#obj-channel').selectOption('POST');
       await page.getByRole('button', { name: 'File objection' }).click();
@@ -1365,12 +1388,13 @@ test.describe('a documented assessment', () => {
       const workbench = new Workbench(page);
       await workbench.tab('Closure');
 
-      await page
-        .locator('#re-grounds')
-        .fill('Reopening the period on the strength of the rejected objection.');
-      await page.getByRole('button', { name: 'Open reassessment' }).click();
-
-      await expect(page.locator('.tas-alert--danger').first()).toBeVisible({ timeout: 20_000 });
+      // The tab does not offer a reassessment the status cannot take; the
+      // server's refusal is asserted at the API.
+      await expect(page.getByRole('button', { name: 'Open reassessment' })).toHaveCount(0);
+      const refused = await apiAttempt('supervisor', `/cases/${caseId}/reassess`, {
+        grounds: 'Reopening the period on the strength of the rejected objection.',
+      });
+      expect(refused.status, 'the server refuses a reassessment on a rejected objection').toBe(409);
 
       await recorder.capture(page, {
         id: 'reassessment-refused-on-rejection',
@@ -1379,12 +1403,12 @@ test.describe('a documented assessment', () => {
         transition: null,
         kind: 'refusal',
         description:
-          'There is one reassessment button and no dropdown asking which kind. A rejected ' +
-          'objection leaves the assessment intact, so there is nothing to reassess and the ' +
-          'server says so. Offering the choice would invite an officer to pick the shape that is ' +
-          'not legally available.',
+          'There is no reassessment to open here, and no dropdown asking which kind. A rejected ' +
+          'objection leaves the assessment intact, so there is nothing to reassess; the tab says ' +
+          `so, and the server refuses the attempt: "${refused.message}". Offering the choice would ` +
+          'invite an officer to pick the shape that is not legally available.',
         expected:
-          'A red alert explains that a reassessment follows a dispute outcome or a closed case.',
+          'No Open reassessment button on a rejected objection, and the API refuses with 409.',
         statusAfter: await workbench.status(),
       });
     });
@@ -1395,7 +1419,7 @@ test.describe('a documented assessment', () => {
       const workbench = new Workbench(page);
       await workbench.tab('Disputes');
 
-      await page.locator('#app-forum').fill('FIRST_TIER_TRIBUNAL');
+      await page.locator('#app-forum').selectOption('FIRST_TIER_TRIBUNAL');
       await page.locator('#app-ref').fill('FTT/2026/00417');
       await page
         .locator('#app-grounds')
@@ -1430,15 +1454,10 @@ test.describe('a documented assessment', () => {
       const workbench = new Workbench(page);
       await workbench.tab('Disputes');
 
-      // The screen asks for the appeal's uuid and shows only its number, so
-      // the identifier is read from the API rather than transcribed. That is
-      // a wart on the screen, not a shortcut around it: the outcome itself is
-      // recorded by filling this form and pressing the button.
-      const outcomeRow = page
-        .locator('.tas-row')
-        .filter({ has: page.getByPlaceholder('Appeal uuid') });
-      await outcomeRow.locator('select').selectOption('SET_ASIDE');
-      await page.getByPlaceholder('Appeal uuid').fill(appeals[0]!.uuid);
+      // The appeal is picked from the case's undecided appeals; its
+      // identifier is read from the API only to know which option to choose.
+      await page.locator('#app-outcome-appeal').selectOption(appeals[0]!.uuid);
+      await page.locator('#app-outcome').selectOption('SET_ASIDE');
       await page
         .locator('#app-outcome-reason')
         .fill('The tribunal held the third-party figure unsupported and set the assessment aside.');
@@ -1469,7 +1488,7 @@ test.describe('a documented assessment', () => {
       const workbench = new Workbench(page);
       await workbench.tab('Closure');
 
-      await page.locator('#close-reason').fill('DISPUTE_EXHAUSTED');
+      await page.locator('#close-reason').selectOption('DISPUTE_EXHAUSTED');
       await page.locator('#close-retention').selectOption('STATUTORY');
       await page
         .locator('#close-narrative')
@@ -1691,11 +1710,15 @@ test.describe('a documented assessment', () => {
       const reviewer = await as('reviewer');
       await reviewer.goto(parked.url);
       const reviewerBench = new Workbench(reviewer);
-      await reviewerBench.actAndExpectRefusal(
-        'Record a response',
-        /TA_TAXPAYER|TA_ASSESSOR|TA_SUPERVISOR/i,
-      );
       await reviewerBench.expectStatus('Awaiting taxpayer');
+      await expect(
+        reviewer.getByRole('button', { name: 'Record a response', exact: true }),
+      ).toHaveCount(0);
+      const refused = await apiAttempt('reviewer', `/cases/${parked.id}/transition`, {
+        action: 'RESPOND',
+      });
+      expect(refused.status, 'the server refuses a reviewer the response').toBe(403);
+      expect(refused.message).toMatch(/TA_TAXPAYER|TA_ASSESSOR|TA_SUPERVISOR/i);
 
       await recorder.capture(reviewer, {
         id: 'respond-refused-to-reviewer',
@@ -1706,12 +1729,14 @@ test.describe('a documented assessment', () => {
         description:
           'Recording what a taxpayer sent back belongs to the officer who asked for it and to ' +
           'their supervisor. A reviewer checks the finished assessment and has no business ' +
-          'entering evidence into it, so the server refuses and names the roles that may.',
+          'entering evidence into it, so the screen does not offer it and the server refuses ' +
+          `the attempt, naming the roles that may: "${refused.message}".`,
         expected:
-          'A red alert names the permitted actors, and the status is still Awaiting taxpayer.',
+          'No Record a response button for the reviewer, the API answers 403, and the status is still Awaiting taxpayer.',
         statusAfter: await reviewerBench.status(),
       });
 
+      await assessor.goto(parked.url);
       await workbench.act('Record a response');
       await workbench.expectStatus('In preparation');
 
@@ -2006,7 +2031,7 @@ test.describe('a documented assessment', () => {
           'and what is left under a reason code the jurisdiction configures, and sets the date ' +
           'the file may be destroyed.',
         expected:
-          'The status reads Closed and the closure record shows DISPUTE_EXHAUSTED, the frozen balance and the retention date.',
+          'The status reads Closed and the closure record shows Dispute exhausted, the frozen balance and the retention date.',
         statusAfter: await supervisor.status(),
       });
     });
@@ -2238,7 +2263,7 @@ test.describe('a documented assessment', () => {
           'read. The file has to keep saying what it said at the time, whatever later payments ' +
           'or corrections do to the account.',
         expected:
-          'The status reads Closed and the closure record shows SETTLED_IN_FULL with the frozen assessed, paid and balance figures.',
+          'The status reads Closed and the closure record shows Settled in full with the frozen assessed, paid and balance figures.',
         statusAfter: await supervisor.status(),
       });
     });

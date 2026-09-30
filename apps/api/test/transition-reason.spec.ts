@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { CaseStatus, RoleCode } from '@tas/contracts';
-import { Sequelize } from 'sequelize';
+import { QueryTypes, Sequelize } from 'sequelize';
 import { ReferenceNumberService } from '../src/forms/reference-number.service';
 import { CaseService } from '../src/tax-assessment/case/case.service';
 import type { DeadlineService } from '../src/tax-assessment/deadline/deadline.service';
@@ -173,6 +173,18 @@ describe('a cancellation has to say why', () => {
     expect(entry?.payload?.['reason']).toBe(
       'Opened against the wrong accounting period; the 2021 return is already assessed.',
     );
+  });
+
+  // The history tab showed "system" against every movement because it had an
+  // id and no name. The name is what an officer reads the file for.
+  it('names the officer who made the move, not only their id', async () => {
+    const entry = (await cases.timeline(caseId)).find((e) => e.toStatus === 'CANCELLED');
+    const [user] = await sequelize.query<{ username: string }>(
+      `SELECT username FROM platform.app_user WHERE id = :id`,
+      { type: QueryTypes.SELECT, replacements: { id: officerId } },
+    );
+    expect(entry?.actorUserId).toBe(officerId);
+    expect(entry?.actorUsername).toBe(user!.username);
   });
 });
 

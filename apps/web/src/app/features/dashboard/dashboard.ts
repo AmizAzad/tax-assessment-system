@@ -90,14 +90,27 @@ import { AmountPipe, EmptyState, ErrorAlert, HumanisePipe, describeError } from 
           <span class="tas-tile__label">Finalised this month</span>
         </div>
 
-        <!-- Two tiles, never one. See the class note. -->
+        <!-- Two tiles, never one, and a line per currency in each: sterling
+             and riyal added together is a number denominated in nothing. -->
         <div class="tas-tile tas-tile--wide">
-          <span class="tas-tile__value tas-amount">{{ figures.net_assessed | tasAmount }}</span>
-          <span class="tas-tile__label">Net assessed {{ figures.currencies ?? '' }}</span>
+          @for (total of figures.net_assessed_by_currency; track total.currency) {
+            <span class="tas-tile__value tas-amount"
+              >{{ total.amount | tasAmount }} <small>{{ total.currency }}</small></span
+            >
+          } @empty {
+            <span class="tas-tile__value">—</span>
+          }
+          <span class="tas-tile__label">Net assessed</span>
         </div>
         <div class="tas-tile tas-tile--wide">
-          <span class="tas-tile__value tas-amount">{{ figures.collected | tasAmount }}</span>
-          <span class="tas-tile__label">Collected {{ figures.currencies ?? '' }}</span>
+          @for (total of figures.collected_by_currency; track total.currency) {
+            <span class="tas-tile__value tas-amount"
+              >{{ total.amount | tasAmount }} <small>{{ total.currency }}</small></span
+            >
+          } @empty {
+            <span class="tas-tile__value">—</span>
+          }
+          <span class="tas-tile__label">Collected</span>
         </div>
 
         <div
@@ -170,20 +183,24 @@ import { AmountPipe, EmptyState, ErrorAlert, HumanisePipe, describeError } from 
               <thead>
                 <tr>
                   <th>Clock</th>
-                  <th>On track</th>
-                  <th>Overdue</th>
-                  <th>Breached</th>
-                  <th>Completed</th>
+                  <th class="tas-amount">On track</th>
+                  <th class="tas-amount">Overdue</th>
+                  <th class="tas-amount">Breached</th>
+                  <th class="tas-amount">Completed</th>
                 </tr>
               </thead>
               <tbody>
                 @for (row of sla()!.service; track row.slaCode) {
                   <tr>
                     <td>{{ row.slaCode | tasHumanise }}</td>
-                    <td>{{ row.onTrack }}</td>
-                    <td [class.tas-amount--negative]="row.overdue > 0">{{ row.overdue }}</td>
-                    <td [class.tas-amount--negative]="row.breached > 0">{{ row.breached }}</td>
-                    <td>{{ row.completed }}</td>
+                    <td class="tas-amount">{{ row.onTrack }}</td>
+                    <td class="tas-amount" [class.tas-amount--negative]="row.overdue > 0">
+                      {{ row.overdue }}
+                    </td>
+                    <td class="tas-amount" [class.tas-amount--negative]="row.breached > 0">
+                      {{ row.breached }}
+                    </td>
+                    <td class="tas-amount">{{ row.completed }}</td>
                   </tr>
                 }
               </tbody>
@@ -205,7 +222,7 @@ import { AmountPipe, EmptyState, ErrorAlert, HumanisePipe, describeError } from 
                   <th>Case</th>
                   <th>Deadline</th>
                   <th>Due</th>
-                  <th style="text-align:end">Days</th>
+                  <th class="tas-amount">Days</th>
                 </tr>
               </thead>
               <tbody>
@@ -245,14 +262,14 @@ import { AmountPipe, EmptyState, ErrorAlert, HumanisePipe, describeError } from 
         flex-direction: column;
         gap: 0.2rem;
         padding: 0.9rem 1rem;
-        border: 1px solid var(--tas-border, #e2e8f0);
+        border: 1px solid var(--tas-border);
         border-radius: 8px;
-        background: var(--tas-surface, #fff);
+        background: var(--tas-surface);
         text-decoration: none;
         color: inherit;
       }
       a.tas-tile:hover {
-        border-color: #2563eb;
+        border-color: var(--tas-primary);
       }
       .tas-tile--wide {
         grid-column: span 2;
@@ -260,20 +277,29 @@ import { AmountPipe, EmptyState, ErrorAlert, HumanisePipe, describeError } from 
       .tas-tile__value {
         font-size: 1.5rem;
         font-weight: 600;
+        color: var(--tas-text-strong);
+      }
+      .tas-tile__value small {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--tas-text-muted);
       }
       .tas-tile__label {
         font-size: 0.8rem;
-        color: var(--tas-muted, #64748b);
+        color: var(--tas-text-muted);
       }
       .tas-tile--warn {
-        border-color: #d97706;
+        border-color: var(--tas-warning);
       }
       .tas-tile--alarm {
-        border-color: #dc2626;
+        border-color: var(--tas-danger);
       }
+      /* Two columns at the page's 1200px, one on a phone. A 340px minimum
+         fitted three columns, and with two charts in the row the third was a
+         blank hole beside them. */
       .tas-dash-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
         gap: 1rem;
         margin-block-end: 1rem;
       }

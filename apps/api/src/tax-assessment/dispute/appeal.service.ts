@@ -390,7 +390,7 @@ export class AppealService {
   }): Promise<readonly Record<string, unknown>[]> {
     return this.sequelize.query<Record<string, unknown>>(
       `SELECT 'OBJECTION' AS kind, o.uuid, o.objection_number AS reference, c.case_number,
-              c.tin, o.filed_on::text AS filed_on, o.status, o.decision AS outcome,
+              c.id AS case_id, c.tin, o.filed_on::text AS filed_on, o.status, o.decision AS outcome,
               o.days_late, NULL::timestamptz AS implemented_at
          FROM tax.tax_objection o
          JOIN tax.tax_assessment_case c ON c.id = o.case_id
@@ -398,7 +398,7 @@ export class AppealService {
           AND NOT :overdueOnly
        UNION ALL
        SELECT 'APPEAL', a.uuid, a.appeal_number, c.case_number,
-              c.tin, a.filed_on::text, a.status, a.outcome,
+              c.id, c.tin, a.filed_on::text, a.status, a.outcome,
               a.days_late, a.implemented_at
          FROM tax.tax_appeal a
          JOIN tax.tax_assessment_case c ON c.id = a.case_id

@@ -26,6 +26,8 @@
     "typecheck": "tsc --build --verbose",
     "dev:up": "podman compose -f deploy/docker/docker-compose.yml up -d",
     "dev:up:podman": "node scripts/dev/stack-up.js",
+    "bpmn:deploy": "node scripts/dev/deploy-process.js",
+    "docs:product": "node scripts/product-doc/build.js",
     "dev:down": "podman compose -f deploy/docker/docker-compose.yml down",
     "dev:logs": "podman compose -f deploy/docker/docker-compose.yml logs -f",
     "dev:reset": "podman compose -f deploy/docker/docker-compose.yml down -v && npm run dev:up",

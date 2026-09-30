@@ -1,6 +1,9 @@
+import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import type { FormDefinition } from '@tas/dynaforms-core';
+import { firstValueFrom } from 'rxjs';
 import { ApiService } from './api.service';
+import { APP_CONFIG } from './config';
 import type {
   Adjustment,
   BpmnValidation,
@@ -20,6 +23,7 @@ import type {
   DepositPosition,
   EvidenceSnapshot,
   LineageEntry,
+  MasterGroup,
   Notice,
   ObjectionDetail,
   ObjectionSummary,
@@ -51,6 +55,7 @@ import type {
 @Injectable({ providedIn: 'root' })
 export class AssessmentService {
   private readonly api = inject(ApiService);
+  private readonly http = inject(HttpClient);
 
   // ------------------------------------------------------------------ cases
 
@@ -121,8 +126,9 @@ export class AssessmentService {
     return this.api.post(`/cases/${id}/evidence/refresh`);
   }
 
-  evidence(id: number): Promise<EvidenceSnapshot> {
-    return this.api.get<EvidenceSnapshot>(`/cases/${id}/evidence`);
+  /** Null, or a 404, when nothing has been retrieved yet. */
+  evidence(id: number): Promise<EvidenceSnapshot | null> {
+    return this.api.get<EvidenceSnapshot | null>(`/cases/${id}/evidence`);
   }
 
   adjustments(id: number): Promise<readonly Adjustment[]> {
@@ -352,8 +358,9 @@ export class AssessmentService {
     return this.api.post<ClosureRecord>(`/cases/${id}/close`, body);
   }
 
-  closure(id: number): Promise<ClosureRecord> {
-    return this.api.get<ClosureRecord>(`/cases/${id}/closure`);
+  /** Null, or a 404, when the case has no closure record. */
+  closure(id: number): Promise<ClosureRecord | null> {
+    return this.api.get<ClosureRecord | null>(`/cases/${id}/closure`);
   }
 
   setLegalHold(id: number, hold: boolean, reason: string): Promise<Record<string, unknown>> {
@@ -385,6 +392,22 @@ export class AssessmentService {
     },
   ): Promise<Record<string, unknown>> {
     return this.api.post(`/taxpayers/${taxpayerId}/account`, body);
+  }
+
+  /**
+   * The codes a jurisdiction configures for one catalogue.
+   *
+   * The route answers for the caller's jurisdiction, which is the deployment
+   * default unless the request names another. A case is assessed under its
+   * own jurisdiction's codes, and the server validates a ground, forum or
+   * closure reason against those, so the request names the case's.
+   */
+  masterCodes(groupCode: string, jurisdiction: string): Promise<MasterGroup> {
+    return firstValueFrom(
+      this.http.get<MasterGroup>(`${APP_CONFIG.apiBaseUrl}/api/v1/masters/${groupCode}`, {
+        headers: { 'x-jurisdiction': jurisdiction },
+      }),
+    );
   }
 
   // ------------------------------------------------- selection and reports

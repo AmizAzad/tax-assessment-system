@@ -41,6 +41,7 @@
   @if (isVisible(element)) {
 
     @if (isContainer(element)) {
+      @if (hasContent(element)) {
       <fieldset class="tas-section">
         @if (element.displayKey) {
           <legend>{{ labelFor(element) }}</legend>
@@ -49,6 +50,7 @@
           <ng-container [ngTemplateOutlet]="node" [ngTemplateOutletContext]="{ $implicit: child }" />
         }
       </fieldset>
+      }
     }
 
     @else if (element.fieldType === FieldType.HEADER) {

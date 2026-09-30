@@ -692,17 +692,22 @@ export class CaseService {
       fromStatus: string | null;
       toStatus: string | null;
       actorUserId: number | null;
+      actorUsername: string | null;
       actorRoleCode: string | null;
       occurredAt: Date;
       payload: Record<string, unknown> | null;
     }>
   > {
+    // The name is joined at read time rather than stored on the event: the
+    // ledger is append-only and keyed on the stable local id, and a history
+    // that showed only ids would be unreadable to the officer it is for.
     const rows = await this.sequelize.query<Record<string, unknown>>(
-      `SELECT event_type, from_status, to_status, actor_user_id, actor_role_code,
-              occurred_at, payload_json
-         FROM tax.tax_assessment_event
-        WHERE case_id = :caseId
-        ORDER BY occurred_at DESC, id DESC`,
+      `SELECT e.event_type, e.from_status, e.to_status, e.actor_user_id, u.username AS actor_username,
+              e.actor_role_code, e.occurred_at, e.payload_json
+         FROM tax.tax_assessment_event e
+         LEFT JOIN platform.app_user u ON u.id = e.actor_user_id
+        WHERE e.case_id = :caseId
+        ORDER BY e.occurred_at DESC, e.id DESC`,
       { type: QueryTypes.SELECT, replacements: { caseId } },
     );
 
@@ -711,6 +716,7 @@ export class CaseService {
       fromStatus: row['from_status'] === null ? null : String(row['from_status']),
       toStatus: row['to_status'] === null ? null : String(row['to_status']),
       actorUserId: row['actor_user_id'] === null ? null : Number(row['actor_user_id']),
+      actorUsername: row['actor_username'] === null ? null : String(row['actor_username']),
       actorRoleCode: row['actor_role_code'] === null ? null : String(row['actor_role_code']),
       occurredAt: row['occurred_at'] as Date,
       payload: row['payload_json'] as Record<string, unknown> | null,

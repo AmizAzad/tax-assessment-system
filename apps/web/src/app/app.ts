@@ -16,7 +16,20 @@ interface NavItem {
   readonly label: string;
   /** The API route this screen needs. Hidden when the caller cannot invoke it. */
   readonly requires?: { method: string; path: string };
+  /**
+   * Active only on its own path, not on paths beneath it. Home and Forms need
+   * it: `/forms/builder` sits under `/forms`, and highlighting both says the
+   * officer is on two screens at once.
+   */
+  readonly exact?: boolean;
 }
+
+/**
+ * Realm roles that describe how a user signs in rather than what they do.
+ * Kept out of the header line, which is read as "what am I here as", and left
+ * in its title so a support call can still read the full set.
+ */
+const SESSION_MARKER_ROLES: ReadonlySet<string> = new Set(['MFA_REQUIRED']);
 
 /**
  * The application shell.
@@ -46,7 +59,7 @@ export class App implements OnInit {
   readonly isAuthenticated = this.auth.isAuthenticated;
 
   private readonly allNav: readonly NavItem[] = [
-    { path: '', label: 'Home' },
+    { path: '', label: 'Home', exact: true },
     {
       path: 'dashboard',
       label: 'Dashboard',
@@ -100,6 +113,7 @@ export class App implements OnInit {
     {
       path: 'forms',
       label: 'Forms',
+      exact: true,
       requires: { method: 'GET', path: '/api/v1/forms/templates' },
     },
     {
@@ -144,6 +158,10 @@ export class App implements OnInit {
     } finally {
       this.ready.set(true);
     }
+  }
+
+  businessRoles(roleCodes: readonly string[]): string {
+    return roleCodes.filter((code) => !SESSION_MARKER_ROLES.has(code)).join(', ');
   }
 
   async switchLanguage(code: string): Promise<void> {

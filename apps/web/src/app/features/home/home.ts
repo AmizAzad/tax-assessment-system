@@ -1,6 +1,8 @@
 import { Component, ChangeDetectionStrategy, OnInit, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { StatusBadge } from '../../shared/ui';
 
 interface JobStatus {
   readonly jobCode: string;
@@ -20,6 +22,7 @@ interface JobStatus {
 @Component({
   selector: 'tas-home',
   standalone: true,
+  imports: [DatePipe, StatusBadge],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h1>Welcome{{ caller()?.username ? ', ' + caller()!.username : '' }}</h1>
@@ -68,8 +71,20 @@ interface JobStatus {
                   <code>{{ job.jobCode }}</code>
                 </td>
                 <td>{{ job.cronExpression }}</td>
-                <td>{{ job.lastRunAt ?? 'never' }}</td>
-                <td>{{ job.lastStatus ?? '—' }}</td>
+                <td>
+                  @if (job.lastRunAt) {
+                    {{ job.lastRunAt | date: 'yyyy-MM-dd HH:mm' }}
+                  } @else {
+                    <span class="tas-muted">never</span>
+                  }
+                </td>
+                <td>
+                  @if (job.lastStatus) {
+                    <tas-status [status]="job.lastStatus" />
+                  } @else {
+                    —
+                  }
+                </td>
               </tr>
             }
           </tbody>
@@ -79,11 +94,16 @@ interface JobStatus {
   `,
   styles: [
     `
+      /* Two columns only where two route keys fit side by side; on a phone
+         one column, and a long key wraps rather than running off the page. */
       .tas-permissions {
-        columns: 2;
+        columns: 2 22rem;
         font-size: 0.85rem;
         margin: 0.5rem 0;
         padding-inline-start: 1.1rem;
+      }
+      .tas-permissions code {
+        overflow-wrap: anywhere;
       }
     `,
   ],

@@ -116,7 +116,7 @@ interface ReportDefinition {
             <thead>
               <tr>
                 @for (column of report.columns; track column.key) {
-                  <th [style.text-align]="column.amount ? 'end' : 'start'">{{ column.label }}</th>
+                  <th [class.tas-amount]="column.amount">{{ column.label }}</th>
                 }
               </tr>
             </thead>

@@ -12,6 +12,7 @@ import { DatePipe } from '@angular/common';
 import { AssessmentService } from '../../../core/assessment.service';
 import type { CalculationDelta, StoredCalculation } from '../../../core/domain';
 import { AmountPipe, EmptyState, ErrorAlert, describeError } from '../../../shared/ui';
+import { canRework } from './case-rules';
 
 /**
  * The authoritative calculation, and the trace that explains it.
@@ -50,17 +51,21 @@ import { AmountPipe, EmptyState, ErrorAlert, describeError } from '../../../shar
           </p>
         </div>
         <div class="tas-row">
-          <button type="button" class="tas-btn" [disabled]="busy()" (click)="loadDelta()">
-            What changed
-          </button>
-          <button
-            type="button"
-            class="tas-btn tas-btn--primary"
-            [disabled]="busy()"
-            (click)="calculate()"
-          >
-            {{ busy() ? 'Calculating…' : 'Calculate' }}
-          </button>
+          @if (history().length > 1) {
+            <button type="button" class="tas-btn" [disabled]="busy()" (click)="loadDelta()">
+              What changed
+            </button>
+          }
+          @if (canCalculate && canRework(status)) {
+            <button
+              type="button"
+              class="tas-btn tas-btn--primary"
+              [disabled]="busy()"
+              (click)="calculate()"
+            >
+              {{ busy() ? 'Calculating…' : 'Calculate' }}
+            </button>
+          }
         </div>
       </div>
 
@@ -124,7 +129,8 @@ import { AmountPipe, EmptyState, ErrorAlert, describeError } from '../../../shar
         </table>
       } @else {
         <tas-empty>
-          No calculation yet. Retrieve the evidence, record any adjustments, then calculate.
+          No calculation yet. The assessor calculates once the evidence is in and any adjustments
+          are recorded.
         </tas-empty>
       }
     </div>
@@ -141,7 +147,7 @@ import { AmountPipe, EmptyState, ErrorAlert, describeError } from '../../../shar
               <th style="width:3rem">#</th>
               <th style="width:12rem">Step</th>
               <th>Working</th>
-              <th style="text-align:end">Result</th>
+              <th class="tas-amount">Result</th>
             </tr>
           </thead>
           <tbody>
@@ -175,9 +181,9 @@ import { AmountPipe, EmptyState, ErrorAlert, describeError } from '../../../shar
           <thead>
             <tr>
               <th>Line</th>
-              <th style="text-align:end">Previous</th>
-              <th style="text-align:end">Revised</th>
-              <th style="text-align:end">Movement</th>
+              <th class="tas-amount">Previous</th>
+              <th class="tas-amount">Revised</th>
+              <th class="tas-amount">Movement</th>
             </tr>
           </thead>
           <tbody>
@@ -209,7 +215,7 @@ import { AmountPipe, EmptyState, ErrorAlert, describeError } from '../../../shar
               <th>Version</th>
               <th>Rule set</th>
               <th>Calculated</th>
-              <th style="text-align:end">Net payable</th>
+              <th class="tas-amount">Net payable</th>
             </tr>
           </thead>
           <tbody>
@@ -234,7 +240,11 @@ export class CaseCalculation implements OnInit {
 
   @Input({ required: true }) caseId!: number;
   @Input() status = '';
+  /** Whether the caller holds the route that calculates. */
+  @Input() canCalculate = false;
   @Output() readonly changed = new EventEmitter<void>();
+
+  readonly canRework = canRework;
 
   readonly current = signal<StoredCalculation | null>(null);
   readonly history = signal<readonly StoredCalculation[]>([]);

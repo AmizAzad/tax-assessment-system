@@ -189,11 +189,43 @@ body {
   }
 }
 
+/* A link dressed as a button. `a:visited` outranks a single class, so a
+ * primary button that had been followed turned the visited-link purple on its
+ * own dark blue, and every one of them kept the link underline. */
+a.tas-btn {
+  display: inline-block;
+  text-decoration: none;
+
+  &,
+  &:visited {
+    color: var(--tas-text);
+  }
+
+  &.tas-btn--primary,
+  &.tas-btn--primary:visited {
+    color: var(--tas-primary-contrast);
+  }
+}
+
 .tas-card {
   background: var(--tas-surface);
   border: 1px solid var(--tas-border);
   border-radius: 8px;
   padding: 1.25rem 1.5rem;
+}
+
+/* A register is wider than a phone. The table scrolls inside its card, so the
+ * header and the page around it stay put instead of the whole screen sliding
+ * sideways. Limited to cards holding a table, so no popover elsewhere is
+ * clipped by the scroll container this creates. */
+.tas-card:has(.tas-table) {
+  overflow-x: auto;
+}
+
+@media (max-width: 600px) {
+  .tas-card {
+    padding: 1rem;
+  }
 }
 
 .tas-alert {
@@ -239,6 +271,29 @@ body {
     font-size: 0.8rem;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+  }
+
+  /* A numeric column, header and cells alike.
+   *
+   * `th, td { text-align: start }` above outranks a bare `.tas-amount`, so a
+   * money cell sat at the start of its column while its header, aligned
+   * inline to the end, sat at the other edge: every figure in the register
+   * looked like it belonged to the column before. Put the class on the `th`
+   * as well as the `td`. */
+  th.tas-amount,
+  td.tas-amount {
+    text-align: end;
+  }
+}
+
+/* A list of route keys. Two columns only where two keys fit side by side: a
+ * fixed two columns on a phone overlapped each key with its neighbour. */
+.tas-route-list {
+  columns: 2 22rem;
+  font-size: 0.85rem;
+
+  code {
+    overflow-wrap: anywhere;
   }
 }
 
@@ -430,6 +485,27 @@ code {
   &__hint {
     font-size: 0.78rem;
     color: var(--tas-text-muted);
+  }
+}
+
+/* A text input outside a `.tas-field`.
+ *
+ * The form renderer styles its own inputs, but inside its component, so the
+ * class meant nothing anywhere else: the builder's Code, Name and Year boxes
+ * rendered as bare browser inputs, and in the dark theme as white boxes. */
+.tas-input {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--tas-border);
+  border-radius: 4px;
+  background: var(--tas-surface);
+  color: var(--tas-text);
+
+  &:disabled {
+    background: var(--tas-surface-muted);
+    color: var(--tas-text-muted);
+    cursor: not-allowed;
   }
 }
 

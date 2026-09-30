@@ -7,8 +7,11 @@ import {
   OnChanges,
   OnDestroy,
   ViewChild,
+  effect,
+  inject,
 } from '@angular/core';
 import ApexCharts from 'apexcharts';
+import { ThemeService } from '../core/theme.service';
 
 /**
  * A chart.
@@ -52,6 +55,20 @@ export class Chart implements AfterViewInit, OnChanges, OnDestroy {
   @Input() tooltipFormatter?: (value: number, index: number) => string;
 
   private chart: ApexCharts | null = null;
+  private readonly theme = inject(ThemeService);
+
+  constructor() {
+    // ApexCharts paints its axis text and gridlines once, in colours it was
+    // handed at render. Without a redraw on a theme change the dark theme kept
+    // dark-grey labels on a dark card and white gridlines across it. Deferred
+    // a microtask so the new tokens are on the document before they are read.
+    effect(() => {
+      this.theme.resolvedMode();
+      if (this.chart !== null) {
+        queueMicrotask(() => this.draw());
+      }
+    });
+  }
 
   ngAfterViewInit(): void {
     this.draw();
@@ -73,11 +90,18 @@ export class Chart implements AfterViewInit, OnChanges, OnDestroy {
     this.chart?.destroy();
 
     const formatter = this.tooltipFormatter;
+    const mode = this.theme.resolvedMode();
+    const tokens = getComputedStyle(document.documentElement);
+    const token = (name: string, fallback: string): string =>
+      tokens.getPropertyValue(name).trim() || fallback;
 
     this.chart = new ApexCharts(this.host.nativeElement, {
+      theme: { mode },
       chart: {
         type: this.type,
         height: this.height,
+        background: 'transparent',
+        foreColor: token('--tas-text-muted', '#66707d'),
         // No toolbar: exporting a chart as a PNG is not an audit trail, and
         // the register export is the supported way to take figures away.
         toolbar: { show: false },
@@ -91,6 +115,7 @@ export class Chart implements AfterViewInit, OnChanges, OnDestroy {
       dataLabels: { enabled: false },
       stroke: { width: this.type === 'line' ? 2 : 1, curve: 'straight' },
       xaxis: this.type === 'donut' ? {} : { categories: [...this.labels] },
+      grid: { borderColor: token('--tas-border', '#d5d9e0') },
       legend: { position: 'bottom' },
       noData: { text: 'Nothing to show yet' },
       tooltip:

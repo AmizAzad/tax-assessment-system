@@ -46,8 +46,25 @@ export interface TimelineEntry {
   readonly fromStatus: string | null;
   readonly toStatus: string | null;
   readonly occurredAt: string;
-  readonly actor: string | null;
-  readonly payload?: Record<string, unknown>;
+  /** Who acted. Null for a step no person took, such as a timer firing. */
+  readonly actorUsername?: string | null;
+  /** The capacity they acted in, which is not always a role they hold now. */
+  readonly actorRoleCode?: string | null;
+  readonly payload?: Record<string, unknown> | null;
+}
+
+/** One configured code in a jurisdiction's catalogue. */
+export interface MasterItem {
+  readonly itemCode: string;
+  readonly displayKey: string;
+  readonly sortOrder: number;
+}
+
+export interface MasterGroup {
+  readonly groupCode: string;
+  readonly jurisdictionCode?: string;
+  readonly displayKey: string;
+  readonly items: readonly MasterItem[];
 }
 
 export interface Adjustment {
@@ -404,11 +421,20 @@ export interface DashboardSummary {
   readonly awaiting_approval: number;
   readonly in_dispute: number;
   readonly finalised_this_month: number;
-  readonly net_assessed: string;
-  readonly collected: string;
+  /** Null when the caller's cases span currencies: there is no honest single total. */
+  readonly net_assessed: string | null;
+  readonly collected: string | null;
+  readonly net_assessed_by_currency: readonly CurrencyTotal[];
+  readonly collected_by_currency: readonly CurrencyTotal[];
   readonly overdue_deadlines: number;
   readonly deadlines_this_week: number;
   readonly currencies: string | null;
+}
+
+export interface CurrencyTotal {
+  readonly currency: string;
+  /** Decimal string, exact as summed by the database. */
+  readonly amount: string;
 }
 
 export interface DashboardWorkload {

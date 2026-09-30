@@ -66,6 +66,12 @@ npm run db:migrate
 npx sequelize-cli db:seed:all --config db/config.js --seeders-path db/seeds --env development
 ```
 
+The seed is not optional for the end-to-end suite or the walkthroughs below:
+it creates the demo company, Acme Trading Ltd, its filed return and account
+entries, and links the `acme-finance` portal login to it. Without it the
+portal user acts for nobody and every GB walkthrough has no taxpayer to open
+a case on.
+
 ---
 
 ## 3. Start the API
@@ -329,6 +335,21 @@ mvn spring-boot:run
 
 Starts on **http://localhost:8080**, creating its tables in the `flowable` schema on first run. Health: http://localhost:8080/actuator/health
 
+**Then deploy the process definition, once:**
+
+```powershell
+npm run bpmn:deploy
+```
+
+A fresh engine has no definitions. Deployment is deliberately an act rather
+than a boot step (an edited file should not take effect because somebody
+restarted a pod), so until an administrator deploys, every case opened is
+worked by hand and the engine answers each start with
+`No process definition found for key 'TAX_ASSESSMENT_MAIN'`. The script signs
+in as the seeded `admin-tax` and calls `POST /api/v1/processes/deploy/standard`,
+which validates the definition first, exactly as the Process Modeller's Deploy
+button does. Running it again with an unchanged file is a no-op.
+
 **The API drives it.** Opening a case starts a process, the engine calls back to
 retrieve evidence, and a task lands in the right officer's inbox. That loop is
 §19, which is the section to read — this one only covers starting the process.
@@ -431,7 +452,6 @@ Also working, and added after the sections below were first written:
 | Arabic notice PDFs                       | `pdfkit` is Latin-1; an Arabic notice is refused, not blank       |
 | A live bank feed or withholding register | Both evidence providers read our own tables (ADR-010)             |
 | Dispute forms as DynaForms templates     | The adjustment form is one; objection and appeal forms are markup |
-| A Playwright end-to-end suite            | Integration tests plus the boundary probe, which is not the same  |
 | An axe accessibility audit               | The keyboard and focus work is done; nothing has been audited     |
 
 And one caveat that is not a missing feature: **every rate, penalty, interest
@@ -445,6 +465,13 @@ figure from this system to anybody.
 
 This is the end-to-end path, in order. Every command below has been run against
 a clean stack. Amounts come from the demo company seeded by `npm run db:seed`.
+
+Taxpayer ids follow the order rows were written. On a stack built as section 2
+describes, migrations run before seeds, so the Saudi company from migration
+`20261006000100` is taxpayer **1** and the seeded Acme Trading Ltd
+(TIN `1234567890`) is taxpayer **2**. A database that was seeded before that
+migration existed has them the other way round; check with
+`SELECT id, tin, name FROM platform.taxpayer` rather than assuming.
 
 Get tokens for the four people involved:
 
@@ -471,7 +498,7 @@ tax type and year is refused with 409 — reassess the first instead.
 ```powershell
 $case = Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/v1/cases -Headers (H $sup) `
   -ContentType application/json -Body (@{
-    taxpayerId=1; taxTypeCode='CIT'; assessmentYear='2024'
+    taxpayerId=2; taxTypeCode='CIT'; assessmentYear='2024'
     assessmentType='DESK'; triggerPath='RISK'; limitationDate='2029-12-31'
   } | ConvertTo-Json)
 $id = $case.id
@@ -761,10 +788,10 @@ The proof that a jurisdiction is configuration, not code. Saudi Arabia is
 seeded by migration `20261006000100`.
 
 ```powershell
-# Najd Industrial Co. is taxpayer 2
+# Najd Industrial Co. is taxpayer 1 on a fresh stack (see section 12)
 $sa = Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/v1/cases -Headers (H $sup) `
   -ContentType application/json -Body (@{
-    taxpayerId=2; taxTypeCode='CIT'; assessmentYear='2024'
+    taxpayerId=1; taxTypeCode='CIT'; assessmentYear='2024'
     assessmentType='DESK'; triggerPath='RISK'; limitationDate='2030-12-31'
   } | ConvertTo-Json)
 
@@ -985,7 +1012,7 @@ Now open a case and watch the loop:
 ```powershell
 $c = Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/v1/cases -Headers (H $sup) `
   -ContentType application/json -Body (@{
-    taxpayerId=1; taxTypeCode='CIT'; assessmentYear='2019'
+    taxpayerId=2; taxTypeCode='CIT'; assessmentYear='2019'
     assessmentType='DESK'; triggerPath='RISK' } | ConvertTo-Json)
 
 # The process that is coordinating it

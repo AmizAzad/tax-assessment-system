@@ -201,9 +201,9 @@ Each links to its ADR. Read these before proposing an architectural change.
 | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | Monorepo, workspaces, TypeScript project references                                                            | `npm run typecheck` passes                                                                                       |
 | `@tas/decimal` — `Money`, statutory rounding, allocation                                                       | **74 tests, 100% statement/branch/function/line coverage**                                                       |
-| `@tas/contracts` — statuses, enums, roles, case state machine                                                  | **22 tests**, including structural invariants                                                                    |
+| `@tas/contracts` — statuses, enums, roles, case state machine                                                  | **31 tests**, including structural invariants                                                                    |
 | Local environment (Postgres, Redis, Keycloak, MinIO, Mailpit)                                                  | `npm run dev:up`                                                                                                 |
-| Database: 4 schemas, 82 tables, 28 migrations                                                                  | Every one applied, rolled back and re-applied clean                                                              |
+| Database: 4 schemas, 82 tables, 32 migrations                                                                  | Every one applied, rolled back and re-applied clean                                                              |
 | **Authentication** — Keycloak JWT, JWKS, audience validation                                                   | Verified against real tokens                                                                                     |
 | **Authorisation** — permission catalogue, Redis cache, fail-closed                                             | **35 tests** incl. the fail-closed suite                                                                         |
 | **Request context** — AsyncLocalStorage, correlation id, SYSTEM context                                        | —                                                                                                                |
@@ -312,16 +312,16 @@ currency default, which is what the exercise exists to do.
 
 ### Numbers, at the time of writing
 
-| Measure                     | Count                                                                   |
-| --------------------------- | ----------------------------------------------------------------------- |
-| Migrations                  | 28, each rolled back and re-applied clean                               |
-| Tables                      | 82 across four schemas                                                  |
-| API routes                  | 122, every one in the permission catalogue                              |
-| Permissions                 | 117                                                                     |
-| Web feature areas           | 16, lazy-loaded                                                         |
-| Tests                       | **516** — 282 API, 108 dynaforms-core, 74 decimal, 30 web, 22 contracts |
-| Live boundary checks        | 44, against a running stack                                             |
-| Dependency advisories, high | 0 (`npm audit --audit-level=high`)                                      |
+| Measure                     | Count                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------- |
+| Migrations                  | 28, each rolled back and re-applied clean                                                   |
+| Tables                      | 82 across four schemas                                                                      |
+| API routes                  | 122, every one in the permission catalogue                                                  |
+| Permissions                 | 123                                                                                         |
+| Web feature areas           | 16, lazy-loaded                                                                             |
+| Tests                       | **579** — 313 API, 108 dynaforms-core, 74 decimal, 53 web, 31 contracts; plus 43 end-to-end |
+| Live boundary checks        | 44, against a running stack                                                                 |
+| Dependency advisories, high | 0 (`npm audit --audit-level=high`)                                                          |
 
 ### The screens
 

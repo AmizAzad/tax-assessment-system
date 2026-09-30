@@ -1,4 +1,4 @@
-import { demoTaxpayer, expect, freeAssessmentYear, test } from './support/fixtures';
+import { apiAttempt, demoTaxpayer, expect, freeAssessmentYear, test } from './support/fixtures';
 import { Workbench } from './support/workbench';
 
 /**
@@ -22,6 +22,10 @@ import { Workbench } from './support/workbench';
  * that must go wrong when somebody tries the shortcut. A green run where
  * nothing was refused would mean the controls are not there.
  */
+function caseId(url: string): number {
+  return Number(/\/cases\/(\d+)$/.exec(url)?.[1]);
+}
+
 test.describe('a complete assessment', () => {
   test('moves from opened to approved through six officers', async ({ as }) => {
     const { taxpayerId } = await demoTaxpayer();
@@ -119,9 +123,16 @@ test.describe('a complete assessment', () => {
       await workbench.expectStatus('Under review');
 
       // Segregation of duties. The same person accepting their own work is
-      // the shortcut the control exists to stop, and the message names the
-      // role that may act.
-      await workbench.actAndExpectRefusal('Accept', /TA_REVIEWER|reviewer|not the assessor/i);
+      // the shortcut the control exists to stop. The screen does not offer
+      // it, and the server refuses it anyway, naming the role that may act.
+      await expect(page.getByRole('button', { name: 'Accept', exact: true })).toHaveCount(0);
+      const refused = await apiAttempt('assessor', `/cases/${caseId(caseUrl)}/transition`, {
+        action: 'ACCEPT',
+      });
+      expect(refused.status, 'the server refuses the assessor their own review').toBe(403);
+      expect(refused.message).toMatch(/TA_REVIEWER|reviewer|not the assessor/i);
+
+      await page.reload();
       await workbench.expectStatus('Under review');
     });
 
@@ -150,6 +161,9 @@ test.describe('a complete assessment', () => {
     await test.step('an assessor cannot approve their own case', async () => {
       const page = await as('assessor');
       await page.goto(caseUrl);
+      // The action bar is drawn from the case, so an absence asserted before
+      // the case has loaded would pass on an empty page.
+      await new Workbench(page).expectStatus('Pending approval');
 
       // Not merely hidden: the assessor's action bar does not offer Approve,
       // and the API would refuse it anyway. The screen agreeing with the

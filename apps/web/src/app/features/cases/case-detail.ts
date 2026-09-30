@@ -24,6 +24,18 @@ import { CaseTimeline } from './tabs/timeline-tab';
 import { CaseClosure } from './tabs/closure-tab';
 import { CaseJourney } from './tabs/journey-tab';
 
+/**
+ * Transitions the state machine gives to SYSTEM that an officer asks for.
+ *
+ * Their actor list names no human role, because the service decides the
+ * outcome, so whether to offer the button is the question of who may call the
+ * service route that performs them.
+ */
+const SERVICE_ACTIONS: Readonly<Record<string, string>> = {
+  ROUTE_APPROVAL: '/api/v1/cases/:id/route-approval',
+  FINALISE: '/api/v1/cases/:id/finalise',
+};
+
 type TabId =
   | 'evidence'
   | 'adjustments'
@@ -40,17 +52,26 @@ type TabId =
  *
  * Plan reference: V2 sections 9.2, 9.3.
  *
- * ## Why the actions are computed from the case, not from the role
+ * ## Why the actions are read off the transition table, role and all
  *
- * The buttons offered come from `permittedActions`, which is derived from the
- * status. The server still decides: every one of them is refused by the
- * transition table if the caller's role does not hold it, and the refusal
- * message says which role does. Hiding a button is a courtesy to the officer,
- * never the control.
+ * The buttons offered are the transitions the state machine defines from the
+ * current status whose actors include a role the caller holds. The server
+ * still decides — segregation of duties and the approval band are checked
+ * there and nowhere else — and a refused action shows the server's own
+ * message, because "requires TA_APPROVER_L2" tells somebody what to do next
+ * and "Forbidden" does not.
  *
- * That is why a refused action shows the server's own message rather than a
- * generic failure. "Action ACCEPT requires one of [TA_REVIEWER]; caller holds
- * [TA_ASSESSOR]" tells somebody what to do next; "Forbidden" does not.
+ * Offering every status's actions to every role was the earlier design. It
+ * put Approve in front of the assessor who wrote the case and Finalise in
+ * front of the notice issuer, each a button the server refused every time,
+ * which teaches officers that errors are the normal response to a click.
+ *
+ * ## Why tabs are shown by permission
+ *
+ * Each tab reads its own route. A role the catalogue does not grant that
+ * route saw the tab, opened it, and got a red "Insufficient permissions" in
+ * place of the content — a notice issuer has no business reading the
+ * adjustments, and the screen now agrees with the server about that.
  */
 @Component({
   selector: 'tas-case-detail',
@@ -105,8 +126,14 @@ type TabId =
         </dl>
       </div>
 
-      <!-- Lifecycle actions. Every one is re-checked by the server. -->
-      @if (permittedActions().length > 0) {
+      <!--
+        Lifecycle actions. Every one is re-checked by the server. Kept on
+        screen after the last action this officer may take, while it carries
+        the service's note: routing for approval leaves the reviewer nothing
+        more to press, and the sentence saying which band it chose is the
+        answer to "why me" when the case lands on an approver.
+      -->
+      @if (permittedActions().length > 0 || actionNote()) {
         <div class="tas-card" style="margin-block-end:1rem">
           <div class="tas-row">
             <strong style="font-size:0.85rem">Actions</strong>
@@ -143,6 +170,10 @@ type TabId =
               </div>
             }
 
+            @if (permittedActions().length === 0) {
+              <span class="tas-muted" style="font-size:0.85rem">Nothing further for you here.</span>
+            }
+
             @for (action of permittedActions(); track action.code) {
               <button
                 type="button"
@@ -162,7 +193,9 @@ type TabId =
             }
           </div>
           @if (actionNote(); as note) {
-            <p class="tas-muted" style="margin-block-start:0.75rem">{{ note }}</p>
+            <p class="tas-muted tas-action-note" role="status" style="margin-block-start:0.75rem">
+              {{ note }}
+            </p>
           }
         </div>
       }
@@ -174,14 +207,14 @@ type TabId =
         content (plan 18.3, WCAG 2.1 AA).
       -->
       <nav class="tas-tabs" role="tablist" aria-label="Case sections" (keydown)="onTabKey($event)">
-        @for (tab of tabs; track tab.id) {
+        @for (tab of visibleTabs(); track tab.id) {
           <button
             type="button"
             role="tab"
             [id]="'tab-' + tab.id"
-            [attr.aria-selected]="active() === tab.id"
+            [attr.aria-selected]="shown() === tab.id"
             [attr.aria-controls]="'panel-' + tab.id"
-            [attr.tabindex]="active() === tab.id ? 0 : -1"
+            [attr.tabindex]="shown() === tab.id ? 0 : -1"
             (click)="active.set(tab.id)"
           >
             {{ tab.label }}
@@ -191,23 +224,35 @@ type TabId =
 
       <div
         role="tabpanel"
-        [id]="'panel-' + active()"
-        [attr.aria-labelledby]="'tab-' + active()"
+        [id]="'panel-' + shown()"
+        [attr.aria-labelledby]="'tab-' + shown()"
         tabindex="0"
       >
-        @switch (active()) {
+        @switch (shown()) {
           @case ('evidence') {
-            <tas-case-evidence [caseId]="c.id" [status]="c.statusCode" (changed)="reload()" />
+            <tas-case-evidence
+              [caseId]="c.id"
+              [status]="c.statusCode"
+              [canRetrieve]="canSee('POST', '/api/v1/cases/:id/evidence/refresh')"
+              (changed)="reload()"
+            />
           }
           @case ('adjustments') {
             <tas-case-adjustments
               [caseId]="c.id"
+              [status]="c.statusCode"
               [currency]="c.currencyCode"
+              [canRecord]="canSee('POST', '/api/v1/cases/:id/adjustments')"
               (changed)="reload()"
             />
           }
           @case ('calculation') {
-            <tas-case-calculation [caseId]="c.id" [status]="c.statusCode" (changed)="reload()" />
+            <tas-case-calculation
+              [caseId]="c.id"
+              [status]="c.statusCode"
+              [canCalculate]="canSee('POST', '/api/v1/cases/:id/calculate')"
+              (changed)="reload()"
+            />
           }
           @case ('schedule') {
             <tas-case-schedule [caseId]="c.id" />
@@ -216,7 +261,12 @@ type TabId =
             <tas-case-notices [caseId]="c.id" [status]="c.statusCode" (changed)="reload()" />
           }
           @case ('disputes') {
-            <tas-case-disputes [caseId]="c.id" [status]="c.statusCode" (changed)="reload()" />
+            <tas-case-disputes
+              [caseId]="c.id"
+              [status]="c.statusCode"
+              [jurisdiction]="c.jurisdictionCode"
+              (changed)="reload()"
+            />
           }
           @case ('closure') {
             <tas-case-closure
@@ -226,6 +276,7 @@ type TabId =
               [taxTypeCode]="c.taxTypeCode"
               [assessmentYear]="c.assessmentYear"
               [currency]="c.currencyCode"
+              [jurisdiction]="c.jurisdictionCode"
               (changed)="reload()"
             />
           }
@@ -272,8 +323,9 @@ export class CaseDetail implements OnInit {
     }
     event.preventDefault();
 
-    const index = this.tabs.findIndex((tab) => tab.id === this.active());
-    const last = this.tabs.length - 1;
+    const tabs = this.visibleTabs();
+    const index = tabs.findIndex((tab) => tab.id === this.shown());
+    const last = tabs.length - 1;
 
     const next =
       event.key === 'Home'
@@ -281,29 +333,69 @@ export class CaseDetail implements OnInit {
         : event.key === 'End'
           ? last
           : event.key === 'ArrowLeft'
-            ? (index - 1 + this.tabs.length) % this.tabs.length
-            : (index + 1) % this.tabs.length;
+            ? (index - 1 + tabs.length) % tabs.length
+            : (index + 1) % tabs.length;
 
-    this.active.set(this.tabs[next]!.id);
+    this.active.set(tabs[next]!.id);
 
     // The button has to receive focus as well as selection, or the next
     // arrow press is handled by whatever the browser still thinks is focused.
     queueMicrotask(() => {
-      document.getElementById(`tab-${this.tabs[next]!.id}`)?.focus();
+      document.getElementById(`tab-${tabs[next]!.id}`)?.focus();
     });
   }
 
-  readonly tabs: readonly { id: TabId; label: string }[] = [
-    { id: 'evidence', label: 'Evidence' },
-    { id: 'adjustments', label: 'Adjustments' },
-    { id: 'calculation', label: 'Calculation' },
-    { id: 'schedule', label: 'Deadlines & SLA' },
-    { id: 'notices', label: 'Notices' },
-    { id: 'disputes', label: 'Disputes' },
-    { id: 'closure', label: 'Closure' },
-    { id: 'journey', label: 'Journey' },
-    { id: 'timeline', label: 'Timeline' },
+  /**
+   * Each tab and the routes it reads on opening.
+   *
+   * Literal catalogue keys, because that is what `/me` returns. A tab needing
+   * two reads needs both: the panel loads them together, and one refusal
+   * would blank the half that was allowed.
+   */
+  private readonly tabs: readonly { id: TabId; label: string; reads: readonly string[] }[] = [
+    { id: 'evidence', label: 'Evidence', reads: ['/api/v1/cases/:id/evidence'] },
+    {
+      id: 'adjustments',
+      label: 'Adjustments',
+      reads: ['/api/v1/cases/:id/adjustments'],
+    },
+    {
+      id: 'calculation',
+      label: 'Calculation',
+      reads: ['/api/v1/cases/:id/calculation', '/api/v1/cases/:id/calculation/history'],
+    },
+    {
+      id: 'schedule',
+      label: 'Deadlines & SLA',
+      reads: ['/api/v1/cases/:id/deadlines/recorded', '/api/v1/cases/:id/sla'],
+    },
+    { id: 'notices', label: 'Notices', reads: ['/api/v1/cases/:id/notices'] },
+    {
+      id: 'disputes',
+      label: 'Disputes',
+      reads: ['/api/v1/cases/:id/objections', '/api/v1/cases/:id/appeals'],
+    },
+    {
+      id: 'closure',
+      label: 'Closure',
+      reads: ['/api/v1/cases/:id/lineage', '/api/v1/cases/:id/reassessments'],
+    },
+    { id: 'journey', label: 'Journey', reads: ['/api/v1/processes/cases/:id/journey'] },
+    { id: 'timeline', label: 'Timeline', reads: ['/api/v1/cases/:id/timeline'] },
   ];
+
+  readonly visibleTabs = computed(() => {
+    // Recomputes when the caller lands, so a deep link opened before `/me`
+    // answers does not freeze on an empty tab list.
+    this.auth.caller();
+    return this.tabs.filter((tab) => tab.reads.every((path) => this.canSee('GET', path)));
+  });
+
+  /** The selected tab, or the first one this caller may open. */
+  readonly shown = computed<TabId | null>(() => {
+    const tabs = this.visibleTabs();
+    return tabs.some((tab) => tab.id === this.active()) ? this.active() : (tabs[0]?.id ?? null);
+  });
 
   /**
    * What can be done from the current status.
@@ -394,18 +486,25 @@ export class CaseDetail implements OnInit {
       ],
     };
     if (status === undefined) return [];
+    const held = this.auth.caller()?.roleCodes ?? [];
 
-    // Whether the action needs a justification is the state machine's answer,
-    // read off the same row the server validates against. Restating it here
-    // would give the officer and the server two rules to disagree about. The
-    // status arrives from the API as the enum's own value, which is why the
-    // lookup takes it as one.
-    return (table[status] ?? []).map((action) => ({
-      ...action,
-      requiresReason:
-        findTransition({ from: status as CaseStatus, action: action.code })?.requiresReason ===
-        true,
-    }));
+    // Who may act, and whether they must say why, are both the state
+    // machine's answers, read off the same row the server validates against.
+    // Restating either here would give the officer and the server two rules
+    // to disagree about. The status arrives from the API as the enum's own
+    // value, which is why the lookup takes it as one.
+    return (table[status] ?? []).flatMap((action) => {
+      const transition = findTransition({ from: status as CaseStatus, action: action.code });
+      if (transition === undefined) return [];
+
+      const service = SERVICE_ACTIONS[action.code];
+      const offered =
+        service !== undefined
+          ? this.canSee('POST', service)
+          : this.canSee('POST', '/api/v1/cases/:id/transition') &&
+            transition.actors.some((role) => held.includes(role));
+      return offered ? [{ ...action, requiresReason: transition.requiresReason }] : [];
+    });
   });
 
   /** Whether any action on offer needs a reason, so the field is shown. */

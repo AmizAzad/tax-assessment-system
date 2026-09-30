@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -94,9 +94,20 @@ export class EvidenceController {
 
   @Get('cases/:id/evidence')
   @RequirePermission(PermissionLevel.VIEW)
-  @ApiOperation({ summary: 'The current evidence snapshot and the declared items from it' })
+  @ApiOperation({
+    summary: 'The current evidence snapshot and the declared items from it',
+    description: 'null until evidence has been retrieved for the case.',
+  })
   async current(@Param('id') id: string) {
-    return this.evidence.currentFor(Number(id));
+    // "Not retrieved yet" is the normal state of every new case, and the
+    // workbench asks on every open. As a 404 it was logged as an error in
+    // every officer's console for a case with nothing wrong with it.
+    try {
+      return await this.evidence.currentFor(Number(id));
+    } catch (error) {
+      if (error instanceof NotFoundException) return null;
+      throw error;
+    }
   }
 
   @Get('taxpayers/:taxpayerId/account')

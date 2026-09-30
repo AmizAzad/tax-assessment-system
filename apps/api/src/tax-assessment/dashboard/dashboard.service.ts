@@ -70,12 +70,38 @@ export class DashboardService {
            WHERE finalised_at IS NOT NULL
              AND finalised_at >= date_trunc('month', CURRENT_DATE))   AS finalised_this_month,
 
-         -- Assessed and collected, never summed together.
-         (SELECT COALESCE(sum(r.net_payable_or_refundable), 0)::text
+         -- Assessed and collected, never summed together, and each one
+         -- totalled per currency. A single sum across GBP and SAR is a number
+         -- denominated in nothing (ADR-007), so the per-currency lists are the
+         -- figures. The flat totals remain for a caller whose cases share one
+         -- currency, and are NULL rather than wrong when they do not.
+         (SELECT COALESCE(json_agg(json_build_object('currency', t.currency_code,
+                                                     'amount', t.amount)
+                                   ORDER BY t.currency_code), '[]'::json)
+            FROM (SELECT r.currency_code, sum(r.net_payable_or_refundable)::text AS amount
+                    FROM tax.tax_calculation_result r
+                    JOIN visible v ON v.id = r.case_id
+                   WHERE r.is_current
+                   GROUP BY r.currency_code) t)                      AS net_assessed_by_currency,
+         (SELECT COALESCE(json_agg(json_build_object('currency', t.currency_code,
+                                                     'amount', t.amount)
+                                   ORDER BY t.currency_code), '[]'::json)
+            FROM (SELECT e.currency_code, sum(e.amount)::text AS amount
+                    FROM tax.taxpayer_account_entry e
+                   WHERE e.is_active
+                     AND e.entry_type IN ('PAYMENT', 'ADVANCE_PAYMENT')
+                     AND EXISTS (SELECT 1 FROM visible v
+                                  WHERE v.taxpayer_id = e.taxpayer_id
+                                    AND v.tax_type_code = e.tax_type_code
+                                    AND v.assessment_year = e.assessment_year)
+                   GROUP BY e.currency_code) t)                      AS collected_by_currency,
+         (SELECT CASE WHEN count(DISTINCT r.currency_code) > 1 THEN NULL
+                      ELSE COALESCE(sum(r.net_payable_or_refundable), 0)::text END
             FROM tax.tax_calculation_result r
             JOIN visible v ON v.id = r.case_id
            WHERE r.is_current)                                        AS net_assessed,
-         (SELECT COALESCE(sum(e.amount), 0)::text
+         (SELECT CASE WHEN count(DISTINCT e.currency_code) > 1 THEN NULL
+                      ELSE COALESCE(sum(e.amount), 0)::text END
             FROM tax.taxpayer_account_entry e
            WHERE e.is_active
              AND e.entry_type IN ('PAYMENT', 'ADVANCE_PAYMENT')

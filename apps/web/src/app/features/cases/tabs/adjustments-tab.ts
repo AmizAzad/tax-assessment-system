@@ -13,6 +13,7 @@ import { AuthService } from '../../../core/auth.service';
 import { DraftStore } from '../../../core/draft-store';
 import type { Adjustment } from '../../../core/domain';
 import { FormRenderer, type FormSubmitEvent } from '../../../dynaforms/form-renderer';
+import { canRework, isUnderDecision } from './case-rules';
 import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '../../../shared/ui';
 import type { FormDefinition, FormValues } from '@tas/dynaforms-core';
 
@@ -54,55 +55,71 @@ import type { FormDefinition, FormValues } from '@tas/dynaforms-core';
   template: `
     <tas-error [message]="error()" />
 
-    <div class="tas-card">
-      <h2 style="margin-top:0">Record an adjustment</h2>
-      <p class="tas-muted">
-        Every adjustment moves the assessed figure away from what the taxpayer declared, so each one
-        needs a reason a reviewer can follow. Amounts are in {{ currency || 'the case currency' }}.
-      </p>
+    @if (canRecord && canRework(status)) {
+      <div class="tas-card">
+        <h2 style="margin-top:0">Record an adjustment</h2>
+        <p class="tas-muted">
+          Every adjustment moves the assessed figure away from what the taxpayer declared, so each
+          one needs a reason a reviewer can follow. Amounts are in
+          {{ currency || 'the case currency' }}.
+        </p>
 
-      @if (restoredAt(); as savedAt) {
-        <div class="tas-alert" role="status">
-          <span>
-            Unsent work from {{ savedAt }} has been put back in this form. It was held in this
-            browser on this machine only — nothing was recorded against the case.
-          </span>
-          <button type="button" class="tas-btn" (click)="discardDraft()">Discard it</button>
-        </div>
-      }
+        @if (restoredAt(); as savedAt) {
+          <div class="tas-alert" role="status">
+            <span>
+              Unsent work from {{ savedAt }} has been put back in this form. It was held in this
+              browser on this machine only — nothing was recorded against the case.
+            </span>
+            <button type="button" class="tas-btn" (click)="discardDraft()">Discard it</button>
+          </div>
+        }
 
-      @if (!drafts.online()) {
-        <div class="tas-alert tas-alert--danger" role="alert">
-          This browser is offline. Keep typing — what you write is held here, and can be sent when
-          the connection returns.
-        </div>
-      }
+        @if (!drafts.online()) {
+          <div class="tas-alert tas-alert--danger" role="alert">
+            This browser is offline. Keep typing — what you write is held here, and can be sent when
+            the connection returns.
+          </div>
+        }
 
-      @if (definition(); as form) {
-        <tas-form-renderer
-          [definition]="form"
-          [roleCodes]="roleCodes()"
-          [draftKey]="draftKey()"
-          [readOnly]="busy()"
-          (submitted)="onSubmit($event)"
-          (draftRestored)="restoredAt.set($event.toLocaleString())"
-        />
-      } @else if (formError(); as message) {
-        <div class="tas-alert tas-alert--danger" role="alert">
-          <strong>The adjustment form is not available.</strong>
-          <p>{{ message }}</p>
-          <p class="tas-alert__hint">
-            The form is configuration: <code>TA-06-ADJUSTMENT</code> must be published before
-            adjustments can be recorded.
-          </p>
-        </div>
-      } @else {
-        <p class="tas-muted">Loading the form…</p>
-      }
-    </div>
+        @if (definition(); as form) {
+          <tas-form-renderer
+            [definition]="form"
+            [roleCodes]="roleCodes()"
+            [draftKey]="draftKey()"
+            [readOnly]="busy()"
+            (submitted)="onSubmit($event)"
+            (draftRestored)="restoredAt.set($event.toLocaleString())"
+          />
+        } @else if (formError(); as message) {
+          <div class="tas-alert tas-alert--danger" role="alert">
+            <strong>The adjustment form is not available.</strong>
+            <p>{{ message }}</p>
+            <p class="tas-alert__hint">
+              The form is configuration: <code>TA-06-ADJUSTMENT</code> must be published before
+              adjustments can be recorded.
+            </p>
+          </div>
+        } @else {
+          <p class="tas-muted">Loading the form…</p>
+        }
+      </div>
+    } @else if (canRecord) {
+      <div class="tas-card">
+        <h2 style="margin-top:0">Adjustments</h2>
+        <p class="tas-muted" style="margin:0">
+          @if (isUnderDecision(status)) {
+            The figures are in front of the reviewer or approver, so they are not changed under
+            them. A change goes back through Return for rework and is reviewed again.
+          } @else {
+            The figures are the legal determination from finalisation onwards, so nothing more is
+            recorded here. A change now goes through a reassessment.
+          }
+        </p>
+      </div>
+    }
 
-    <div class="tas-card" style="margin-block-start:1rem">
-      <h3>Adjustments on this case</h3>
+    <div class="tas-card" [style.margin-block-start]="canRecord ? '1rem' : null">
+      <h3 style="margin-top:0">Adjustments on this case</h3>
       @if (rows().length === 0) {
         <tas-empty>
           None recorded. The assessment currently rests entirely on the declared figures.
@@ -114,7 +131,7 @@ import type { FormDefinition, FormValues } from '@tas/dynaforms-core';
               <th>Type</th>
               <th>Reason</th>
               <th>Direction</th>
-              <th style="text-align:end">Amount</th>
+              <th class="tas-amount">Amount</th>
               <th>Status</th>
               <th>Narrative</th>
             </tr>
@@ -147,7 +164,10 @@ export class CaseAdjustments implements OnInit {
   protected readonly drafts = inject(DraftStore);
 
   @Input({ required: true }) caseId!: number;
+  @Input() status = '';
   @Input() currency = '';
+  /** Whether the caller holds the route that records one. */
+  @Input() canRecord = false;
   @Output() readonly changed = new EventEmitter<void>();
 
   readonly rows = signal<readonly Adjustment[]>([]);
@@ -157,6 +177,9 @@ export class CaseAdjustments implements OnInit {
   readonly busy = signal(false);
   /** When the restored draft was written, or null if nothing was restored. */
   readonly restoredAt = signal<string | null>(null);
+
+  readonly canRework = canRework;
+  readonly isUnderDecision = isUnderDecision;
 
   roleCodes(): readonly string[] {
     return this.auth.caller()?.roleCodes ?? [];
@@ -168,7 +191,10 @@ export class CaseAdjustments implements OnInit {
   }
 
   async ngOnInit(): Promise<void> {
-    await Promise.all([this.loadForm(), this.load()]);
+    // The template is fetched only for someone who may use it: a role that
+    // reads adjustments but cannot record one would otherwise make a request
+    // for a form it is never shown.
+    await Promise.all([this.canRecord ? this.loadForm() : undefined, this.load()]);
   }
 
   async load(): Promise<void> {

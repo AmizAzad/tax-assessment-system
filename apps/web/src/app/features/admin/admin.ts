@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AssessmentService } from '../../core/assessment.service';
@@ -29,7 +30,7 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
   selector: 'tas-admin',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, AmountPipe, StatusBadge, EmptyState, ErrorAlert],
+  imports: [DatePipe, FormsModule, AmountPipe, StatusBadge, EmptyState, ErrorAlert],
   template: `
     <div class="tas-page-head">
       <div>
@@ -77,7 +78,7 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
             <tas-empty>Nothing matches.</tas-empty>
           } @else {
             <p class="tas-muted">{{ filteredPermissions().length }} registered route(s).</p>
-            <ul style="columns:2; font-size:0.85rem; margin:0">
+            <ul class="tas-route-list" style="margin:0">
               @for (route of filteredPermissions(); track route) {
                 <li>
                   <code>{{ route }}</code>
@@ -102,8 +103,8 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
                 <tr>
                   <th>Jurisdiction</th>
                   <th>Tax</th>
-                  <th style="text-align:end">From</th>
-                  <th style="text-align:end">To</th>
+                  <th class="tas-amount">From</th>
+                  <th class="tas-amount">To</th>
                   <th>Currency</th>
                   <th>Approver</th>
                   <th>Approvals</th>
@@ -157,7 +158,11 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
                       <code>{{ job['jobCode'] }}</code>
                     </td>
                     <td class="tas-muted">{{ job['cronExpression'] }}</td>
-                    <td class="tas-muted">{{ job['lastRunAt'] ?? '—' }}</td>
+                    <td class="tas-muted">
+                      {{
+                        job['lastRunAt'] ? (text(job['lastRunAt']) | date: 'yyyy-MM-dd HH:mm') : '—'
+                      }}
+                    </td>
                     <td><tas-status [status]="text(job['lastStatus'] ?? 'IDLE')" /></td>
                     <td class="tas-muted" style="font-size:0.8rem">{{ job['lastError'] ?? '' }}</td>
                   </tr>
@@ -194,7 +199,7 @@ import { AmountPipe, EmptyState, ErrorAlert, StatusBadge, describeError } from '
               </div>
             </dl>
             <h3>Effective permissions</h3>
-            <ul style="columns:2; font-size:0.85rem">
+            <ul class="tas-route-list">
               @for (permission of me.permissions; track permission) {
                 <li>
                   <code>{{ permission }}</code>

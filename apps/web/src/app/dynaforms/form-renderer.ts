@@ -347,6 +347,19 @@ export class FormRenderer {
   }
 
   /**
+   * Whether a container has anything of its own to draw.
+   *
+   * Buttons are collected into the form's action bar, not drawn where the
+   * template places them, so a button group left in the tree rendered as an
+   * empty bordered box with a legend and nothing inside it.
+   */
+  hasContent(element: FormElement): boolean {
+    return (element.children ?? []).some((child) =>
+      this.isContainer(child) ? this.hasContent(child) : child.fieldType !== FieldType.BUTTON,
+    );
+  }
+
+  /**
    * A field's label.
    *
    * Resolved through the language bundle. An unresolved key renders as the key

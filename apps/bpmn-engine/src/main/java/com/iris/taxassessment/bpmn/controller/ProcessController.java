@@ -47,11 +47,17 @@ public class ProcessController {
             @RequestParam("name") @NotBlank String name,
             @RequestBody String workflowXml) {
 
+        // Duplicate filtering makes a redeploy of an unchanged file a no-op
+        // rather than a new version, so "deploy the standard definition" can
+        // be run as often as setup needs without versions piling up.
         Deployment deployment = repositoryService.createDeployment()
                 .name(name)
                 .addBytes(name + ".bpmn20.xml", workflowXml.getBytes(StandardCharsets.UTF_8))
+                .enableDuplicateFiltering()
                 .deploy();
 
+        // A filtered deployment is the earlier one, so its definition is
+        // found by the deployment id it hands back, exactly as a new one is.
         List<ProcessDefinition> definitions = repositoryService
                 .createProcessDefinitionQuery()
                 .deploymentId(deployment.getId())
