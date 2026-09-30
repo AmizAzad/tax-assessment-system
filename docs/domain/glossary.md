@@ -54,7 +54,7 @@ Deliberately jurisdiction-neutral: anything jurisdiction-specific is configurati
 | Term                    | Meaning here                                                                                                                                                          |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Assessment decision** | The determination: no change, additional tax, refund, or nil                                                                                                          |
-| **Notice / order**      | The legal instrument served on the taxpayer. Rendered, signed, checksummed and verifiable                                                                             |
+| **Notice / order**      | The legal instrument served on the taxpayer. Rendered, checksummed and verifiable; digital signing is not built yet                                                   |
 | **Service of notice**   | The act of delivery **and its proof**. Distinct from generation                                                                                                       |
 | **Service date**        | The date from which statutory clocks run. Objection and appeal windows are computed from this, never from the finalisation date                                       |
 | **Deemed service**      | Jurisdiction rules that treat a notice as served without proof of receipt — for example, portal publication is service, or post is service plus N days. Configuration |
@@ -77,14 +77,14 @@ Deliberately jurisdiction-neutral: anything jurisdiction-specific is configurati
 
 ## Revision and closure
 
-| Term                  | Meaning here                                                                                                                                               |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Reassessment**      | A new assessment superseding a previous one. Creates a **successor case** with `predecessor_case_id` and `version = n+1`. It never reopens the predecessor |
-| **Limitation period** | The time limit on the authority's own power to assess or reassess. Expiry produces `TIME_BARRED`                                                           |
-| **Settlement**        | Closure by payment or acceptance                                                                                                                           |
-| **Write-off**         | Closure by abandoning an uncollectible liability, subject to authority thresholds                                                                          |
-| **Closure**           | Terminal state. Sets retention                                                                                                                             |
-| **Legal hold**        | A flag blocking retention-driven deletion regardless of retention class. Set on cases under appeal                                                         |
+| Term                  | Meaning here                                                                                                                                                                                                                                                                                                                                                           |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Reassessment**      | A revised assessment. **In place** after an objection is allowed or partly allowed, or an appeal is varied or remanded: the same case goes back to preparation, review and approval. As a **successor case** (`predecessor_case_id`, `version = n+1`) when new information arrives after the case is closed, settled or written off; the predecessor is never reopened |
+| **Limitation period** | The time limit on the authority's own power to assess or reassess. Expiry produces `TIME_BARRED`                                                                                                                                                                                                                                                                       |
+| **Settlement**        | Closure by payment or acceptance                                                                                                                                                                                                                                                                                                                                       |
+| **Write-off**         | Closure by abandoning an uncollectible liability, subject to authority thresholds                                                                                                                                                                                                                                                                                      |
+| **Closure**           | Terminal state. Sets retention                                                                                                                                                                                                                                                                                                                                         |
+| **Legal hold**        | A flag blocking retention-driven deletion regardless of retention class. Set on cases under appeal                                                                                                                                                                                                                                                                     |
 
 ---
 

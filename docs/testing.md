@@ -133,7 +133,9 @@ npm run start:web
 ```
 
 The seed is required. Without it the portal login acts for nobody and the
-suite has no GB taxpayer to open cases on.
+suite has no GB taxpayer to open cases on. If the BPMN engine is running, deploy
+the process once with `npm run bpmn:deploy`; without the engine the suite works
+every case by hand, which it also accepts.
 
 ### One recording per test, paced for a person
 
@@ -151,6 +153,11 @@ to the HTML report (`npx playwright show-report`):
   the shared tab bound to the assessor. Navigating through it hands the tab
   over; any other use while a different officer holds the tab throws, rather
   than performing the click as the wrong person.
+- **Sessions stay fresh across a long run.** Access tokens last fifteen
+  minutes, and a paced run lasts much longer. The stage keeps each officer's
+  latest session when it hands the tab on, refreshes it at Keycloak with its
+  own refresh token when it is close to expiry, and signs in through the real
+  login form only if even that has lapsed.
 - **Who is acting** is captioned in the corner of every frame. The caption is
   in a closed shadow root, so no locator in a spec can match it.
 - **Paced.** Every action waits `E2E_SLOW_MO` milliseconds first (default
@@ -168,11 +175,11 @@ recording each.
 | Suite                 | Tests   | Status                                                       |
 | --------------------- | ------- | ------------------------------------------------------------ |
 | `@tas/decimal`        | 74      | Passing, 100% coverage on all four metrics                   |
-| `@tas/contracts`      | 22      | Passing, including the structural invariants above           |
+| `@tas/contracts`      | 31      | Passing, including the structural invariants above           |
 | `@tas/dynaforms-core` | 108     | Passing; the same engines the browser runs                   |
-| `apps/api`            | 282     | Passing across 16 suites; integration needs `npm run dev:up` |
-| `apps/web`            | 30      | Passing in headless Chrome                                   |
-| **Total**             | **516** |                                                              |
+| `apps/api`            | 313     | Passing across 21 suites; integration needs `npm run dev:up` |
+| `apps/web`            | 53      | Passing in headless Chrome                                   |
+| **Total**             | **579** | Plus 43 end-to-end tests; see [End to end](#end-to-end)      |
 
 ### What the newest suites hold still
 
