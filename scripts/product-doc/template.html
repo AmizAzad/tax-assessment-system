@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tax Assessment Platform — Product Overview, Status and Roadmap</title>
+<style>
+  @page { size: A4 portrait; }
+  @page wide { size: A3 landscape; }
+  .wide { page: wide; }
+  :root { --ink:#111827; --muted:#4b5563; --line:#d7dce3; --brand:#1f3a5f; --soft:#f4f6f9; --ok:#1f7a45; --part:#a15c00; --plan:#6b7280; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: var(--ink); font-size: 10.5pt; line-height: 1.5; margin: 0; }
+  h1 { font-size: 22pt; margin: 0 0 6pt; color: var(--brand); }
+  h2 { font-size: 16pt; color: var(--brand); margin: 0 0 8pt; padding-bottom: 4pt; border-bottom: 2px solid var(--brand); }
+  h3 { font-size: 12pt; margin: 14pt 0 4pt; color: var(--brand); }
+  p { margin: 0 0 7pt; }
+  ul, ol { margin: 0 0 8pt 16pt; padding: 0; }
+  li { margin-bottom: 3pt; }
+  section { break-before: page; }
+  .avoid { break-inside: avoid; }
+  table { width: 100%; border-collapse: collapse; margin: 4pt 0 10pt; font-size: 9.2pt; }
+  th { background: var(--brand); color: #fff; text-align: left; padding: 5pt 6pt; font-weight: 600; }
+  td { border-bottom: 1px solid var(--line); padding: 4pt 6pt; vertical-align: top; }
+  tr { break-inside: avoid; }
+  td.num, td.c { text-align: center; white-space: nowrap; }
+  tr.succ td { background: #fbf6ec; }
+  .tag { display: inline-block; font-size: 8pt; font-weight: 700; padding: 1pt 6pt; border-radius: 8pt; color: #fff; white-space: nowrap; }
+  .t-ok { background: var(--ok); } .t-part { background: var(--part); } .t-plan { background: var(--plan); }
+  .callout { background: var(--soft); border-left: 4px solid var(--brand); padding: 8pt 10pt; margin: 8pt 0 10pt; }
+  .warn { background: #fff7e6; border-left-color: #b86e00; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8pt; margin: 8pt 0 12pt; }
+  .kpi { border: 1px solid var(--line); border-radius: 8pt; padding: 8pt; }
+  .kpi b { display: block; font-size: 17pt; color: var(--brand); line-height: 1.1; }
+  .kpi span { font-size: 8.5pt; color: var(--muted); }
+  .muted { color: var(--muted); }
+  .small { font-size: 8.8pt; }
+  figure { margin: 6pt 0 10pt; }
+  figcaption { font-size: 9pt; color: var(--muted); margin-top: 4pt; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6pt 16pt; font-size: 9pt; color: var(--muted); margin-top: 4pt; }
+  .sw { display: inline-block; width: 12pt; height: 9pt; border-radius: 3pt; vertical-align: -1pt; margin-right: 4pt; border: 1.5px solid; }
+  /* cover */
+  .cover { height: 250mm; display: flex; flex-direction: column; justify-content: space-between; }
+  .cover .band { background: var(--brand); color: #fff; padding: 28mm 14mm 16mm; margin: -14mm -14mm 0; }
+  .cover .band h1 { color: #fff; font-size: 30pt; }
+  .cover .band p { font-size: 13pt; opacity: .92; }
+  .cover dl { display: grid; grid-template-columns: 38mm 1fr; gap: 3pt 10pt; font-size: 10pt; }
+  .cover dt { color: var(--muted); }
+  .toc ol { list-style: none; margin: 0; }
+  .toc li { display: flex; border-bottom: 1px dotted var(--line); padding: 3pt 0; }
+  .toc li span:first-child { width: 10mm; color: var(--muted); }
+  .journey { border: 1px solid var(--line); border-radius: 8pt; padding: 7pt 9pt; margin-bottom: 7pt; break-inside: avoid; }
+  .journey b { color: var(--brand); }
+  .path { font-size: 9pt; color: var(--muted); margin-top: 2pt; }
+  .wide h2 { font-size: 15pt; margin-bottom: 4pt; }
+  .wide figure { margin: 0; text-align: center; }
+  /* Sized to the A3 page's height: at full width the diagram is taller than
+     the page and Chromium pushes it onto a page of its own. */
+  .wide figure svg { width: auto; height: 250mm; max-width: 100%; }
+</style>
+</head>
+<body>
+
+<!-- ============================== COVER ============================== -->
+<div class="cover">
+  <div class="band">
+    <p style="font-size:11pt;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10pt">Product overview · status · roadmap</p>
+    <h1>Tax Assessment Platform</h1>
+    <p>What the platform does, what has been built, what is planned next, and how a new jurisdiction is added.</p>
+  </div>
+  <div class="callout" style="font-size:11pt;margin:0 0 14pt">
+    <b>At a glance.</b> A configuration-driven platform that carries a tax assessment from initiation to closure —
+    evidence, calculation with full working, review and approval by different people, legal notice, objection,
+    appeal, reassessment and closure. Built end to end and tested through the real screens; the United Kingdom and
+    Saudi Arabia are configured; production readiness, independent assurance and integrations are the next phases.
+  </div>
+  <div>
+    <dl>
+      <dt>Audience</dt><dd>Senior leadership and clients</dd>
+      <dt>Version</dt><dd>1.0</dd>
+      <dt>Date</dt><dd>30 September 2026</dd>
+      <dt>Status basis</dt><dd>The platform as built on branch <i>feat/documented-e2e-cycle</i>, checked against its code, tests and a running instance</dd>
+      <dt>Classification</dt><dd>Confidential — for the intended recipients</dd>
+    </dl>
+    <div class="callout warn small" style="margin-top:12pt">
+      <b>Important.</b> The tax rates, bands, penalties, interest rates and statutory periods configured for the
+      United Kingdom and Saudi Arabia are illustrative. They are drawn from public guidance and have not yet been
+      certified by a tax subject-matter expert. They demonstrate how the platform works, not a legal position.
+    </div>
+  </div>
+</div>
+
+<!-- ============================== CONTENTS ============================== -->
+<section class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><span>1</span><span>Executive summary</span></li>
+    <li><span>2</span><span>What the platform does</span></li>
+    <li><span>3</span><span>Who uses it, and the checks between them</span></li>
+    <li><span>4</span><span>A tax assessment case from start to finish — the flow diagrams</span></li>
+    <li><span>5</span><span>Every possible case journey</span></li>
+    <li><span>6</span><span>Complete reference: every step a case can take</span></li>
+    <li><span>7</span><span>What has been delivered</span></li>
+    <li><span>8</span><span>What is partly delivered</span></li>
+    <li><span>9</span><span>Roadmap: what is pending, in phases</span></li>
+    <li><span>10</span><span>Jurisdictions: today, and how a new one is added</span></li>
+    <li><span>11</span><span>Safeguards built into the platform</span></li>
+    <li><span>12</span><span>Architecture at a glance</span></li>
+    <li><span>13</span><span>Quality and assurance</span></li>
+    <li><span>14</span><span>Connections to other systems</span></li>
+    <li><span>15</span><span>Known limitations and risks</span></li>
+    <li><span>16</span><span>Glossary</span></li>
+  </ol>
+</section>
+
+<!-- ============================== 1 EXECUTIVE SUMMARY ============================== -->
+<section>
+  <h2>1. Executive summary</h2>
+  <p>
+    The Tax Assessment Platform is software a tax authority uses to assess what a taxpayer owes and to carry that
+    assessment through to its end. It covers the whole life of an assessment: choosing who to examine, gathering the
+    evidence, working out the adjustments, calculating the liability, having it reviewed and approved by different
+    people, issuing and serving the legal notice, handling the taxpayer's objection and any appeal, reassessing where
+    a decision requires it, and finally settling, closing, writing off or time-barring the case.
+  </p>
+  <p>
+    It is built so that <b>each country's tax rules are configuration, not software</b>. Rates, bands, deadlines,
+    notice wording, approval limits, reference lists, calendars and risk rules are data. The United Kingdom
+    (Corporation Tax) is the first jurisdiction; Saudi Arabia (Corporate Income Tax) has been configured alongside it
+    to prove that a second country can be added without rewriting the platform.
+  </p>
+
+  <div class="kpis">
+    <div class="kpi"><b>14</b><span>lifecycle stages, initiation to closure</span></div>
+    <div class="kpi"><b>{{TRANSITION_COUNT}}</b><span>defined steps between {{STATUS_COUNT}} case statuses, each with who may take it</span></div>
+    <div class="kpi"><b>2</b><span>jurisdictions configured (UK, Saudi Arabia)</span></div>
+    <div class="kpi"><b>10</b><span>demonstration logins across nine officer roles and a taxpayer</span></div>
+    <div class="kpi"><b>579</b><span>automated unit and integration tests, all passing</span></div>
+    <div class="kpi"><b>43</b><span>end-to-end browser tests driving the real screens, all passing</span></div>
+    <div class="kpi"><b>42</b><span>"golden" whole-case calculation tests with expected working</span></div>
+    <div class="kpi"><b>920k</b><span>cases in a load test; the case register answered in 42 ms</span></div>
+  </div>
+
+  <h3>Where the platform stands</h3>
+  <ul>
+    <li><b>Delivered:</b> the complete assessment lifecycle, working end to end through the screens; exact money
+      arithmetic with a step-by-step calculation trace; separation of duties between preparer, reviewer and approver;
+      notices with tamper-evidence and public verification; statutory deadlines on each country's working calendar;
+      objections, appeals, reassessment and closure; a taxpayer portal; dashboards, eight reports and exports; risk-based
+      selection; a visual form builder; and a process modeller.</li>
+    <li><b>Partly delivered:</b> approval by amount band is routed and recorded, but the approver's level is not yet
+      enforced at the approval step; multi-factor sign-in is configured but not switched on; the connections to the
+      authority's own filing, payment and registry systems use the platform's internal data today.</li>
+    <li><b>Pending:</b> production readiness and independent assurance (tax-expert sign-off, user acceptance
+      testing, penetration test, accessibility audit, performance testing, deployment packaging), digital signing of
+      notices, Arabic-language content, self-service configuration screens, and integrations with external systems.
+      Section 9 proposes how these are phased.</li>
+  </ul>
+  <div class="callout">
+    <b>The one rule the platform is built around:</b> forms display, the server decides. Nothing that determines a
+    legal figure or a statutory date is ever computed in a browser; every figure can be reproduced and explained,
+    line by line, years later.
+  </div>
+</section>
+
+<!-- ============================== 2 WHAT IT DOES ============================== -->
+<section>
+  <h2>2. What the platform does</h2>
+  <p>An assessment moves through fourteen stages. The table describes each in plain terms; section 4 shows every
+    path between them.</p>
+  <table>
+    <tr><th style="width:5%">#</th><th style="width:22%">Stage</th><th>What happens</th></tr>
+    <tr><td class="num">1</td><td>Initiation</td><td>The authority decides to examine a taxpayer, a tax and a period — by a supervisor's decision, from a risk-based selection run, or automatically. One open case per taxpayer, tax and year is enforced.</td></tr>
+    <tr><td class="num">2</td><td>Evidence retrieval</td><td>The platform gathers the filed return and the taxpayer's account (payments, credits, losses), then freezes that evidence with a digital fingerprint so the facts a decision rested on can later be shown to be unchanged. If a mandatory source cannot answer, the case waits rather than being assessed on nothing.</td></tr>
+    <tr><td class="num">3</td><td>Assignment</td><td>A supervisor assigns the case to a named assessor. The case receives its reference number.</td></tr>
+    <tr><td class="num">4</td><td>Preparation</td><td>The assessor records adjustments to what the taxpayer declared — each with a type, a reason and a narrative — and can ask the taxpayer for information, which pauses the case until a reply or the due date.</td></tr>
+    <tr><td class="num">5</td><td>Calculation</td><td>The server calculates the liability through a fixed sequence: assessed base, loss set-off, taxable base, tax at the applicable rates, surcharge, credits, penalties, interest and net position. Every step is stored with its working.</td></tr>
+    <tr><td class="num">6</td><td>Review</td><td>A different officer reviews the work. They accept it or return it for rework with a written reason. The preparer can never review their own work.</td></tr>
+    <tr><td class="num">7</td><td>Approval</td><td>The case is routed to an approver according to the amount at stake, never by choice. The approver approves or rejects with a reason. While a case is under review or approval its figures are locked, so the approver approves exactly what the reviewer saw.</td></tr>
+    <tr><td class="num">8</td><td>Finalisation</td><td>The figure becomes the legal determination. Losses the calculation relied on are consumed, so the same loss can never relieve two assessments.</td></tr>
+    <tr><td class="num">9</td><td>Notice</td><td>The assessment notice is produced from approved wording (which can insert values but never calculate), stored as a PDF and given a fingerprint.</td></tr>
+    <tr><td class="num">10</td><td>Service</td><td>The notice is served by e-mail, portal, post, hand delivery or publication. The legal "deemed served" date is worked out from each country's rules, and the taxpayer's statutory window opens.</td></tr>
+    <tr><td class="num">—</td><td>Taxpayer's response</td><td>The taxpayer pays (the platform concludes this from the account, nobody can simply mark it paid), objects, or lets the window lapse. A supervisor may write off an uncollectable liability, with a reason.</td></tr>
+    <tr><td class="num">11</td><td>Objection</td><td>The objection is recorded (even if late — lateness is measured, not used to refuse), its admissibility decided, any deposit assessed, committee opinions recorded, and the objection officer decides: allowed, partly allowed or rejected.</td></tr>
+    <tr><td class="num">12</td><td>Appeal</td><td>A rejected objection can go to an external forum. Officers record the hearing and outcome — upheld, varied, set aside or remanded — and whether the outcome has been implemented.</td></tr>
+    <tr><td class="num">13</td><td>Reassessment</td><td>Where a decision changes the figure, the case is reworked and goes through review and approval again. New information after a case has ended opens a linked successor case.</td></tr>
+    <tr><td class="num">14</td><td>Closure</td><td>The case is closed with its final balance frozen and a retention period set; it may be placed under legal hold. Other endings are cancellation, write-off and time-bar.</td></tr>
+  </table>
+</section>
+
+<!-- ============================== 3 ROLES ============================== -->
+<section>
+  <h2>3. Who uses it, and the checks between them</h2>
+  <table>
+    <tr><th style="width:24%">Role</th><th>What they do</th></tr>
+    <tr><td>Supervisor</td><td>Opens and assigns cases, runs risk selection, records paper objections and appeals, records payments, reassesses, places legal holds, closes, cancels and writes off (cancelling and writing off always need a written reason).</td></tr>
+    <tr><td>Assessor</td><td>Prepares the case: adjustments, information requests, calculation, submission for review.</td></tr>
+    <tr><td>Specialist</td><td>May record adjustments on a case (for example transfer pricing).</td></tr>
+    <tr><td>Reviewer</td><td>Accepts a prepared case or returns it for rework, with a reason.</td></tr>
+    <tr><td>Approver (levels 1–3)</td><td>Approves or rejects cases in their amount band; rejection needs a reason.</td></tr>
+    <tr><td>Notice issuer</td><td>Issues and serves notices for the office.</td></tr>
+    <tr><td>Objection officer</td><td>Records objections, rules on admissibility and decides them — the only role that may decide.</td></tr>
+    <tr><td>Committee member</td><td>Records opinions on objections they are convened for.</td></tr>
+    <tr><td>Appeals officer</td><td>Records appeals, hearings, outcomes and their implementation.</td></tr>
+    <tr><td>Auditor (read-only)</td><td>Reads the register, case histories, calculations and configuration; changes nothing.</td></tr>
+    <tr><td>Administrator</td><td>Maintains configuration: publishes rule sets and notice wording, deploys process definitions, manages the permission catalogue.</td></tr>
+    <tr><td>Taxpayer</td><td>Uses the portal to see their own served assessments, notices and account, and to file objections.</td></tr>
+    <tr><td>System</td><td>Carries out automatic steps: evidence retrieval, approval routing, finalisation, notice generation, response windows, settlement and time-bar.</td></tr>
+  </table>
+  <h3>Checks between people (separation of duties)</h3>
+  <ul>
+    <li>The person who prepared a case may not review it; the preparer and the reviewer may not approve it. This is
+      checked against who actually acted on the case, not against who currently holds it.</li>
+    <li>Routing to an approver and finalisation are automatic, so nobody can steer their own case to a friendlier
+      approver or finalise an unapproved one.</li>
+    <li>Whoever writes a rule set cannot publish it; a second person must.</li>
+    <li>Only the objection officer decides an objection; a supervisor cannot.</li>
+    <li>A taxpayer only ever sees their own affairs. Which taxpayer a login acts for is read from recorded, dated
+      authority on every request, never from anything the browser sends.</li>
+    <li>Every screen offers only the actions the person may take at that point, and the server checks every action
+      again regardless.</li>
+  </ul>
+</section>
+
+<!-- ============================== 4 FLOW ============================== -->
+<section>
+  <h2>4. A tax assessment case from start to finish</h2>
+  <p>The overview shows the seven broad phases a case passes through and the loops between them. The two detailed
+    diagrams that follow show <b>every</b> status a case can be in and <b>every</b> step between them — all
+    {{TRANSITION_COUNT}} defined steps, plus the successor case opened on new information. Nothing a case can do is
+    left out: the diagrams are drawn from the same definition the platform enforces.</p>
+  <figure>{{FLOW_OVERVIEW}}<figcaption>Figure 1 — The phases of a case, with the loops back to preparation and the successor case.</figcaption></figure>
+  <h3>How to read the detailed diagrams</h3>
+  <div class="legend">
+    <span><i class="sw" style="background:#e8f1fb;border-color:#2f6db3"></i>Opening</span>
+    <span><i class="sw" style="background:#eaf6ee;border-color:#2e8b57"></i>Preparation and rework</span>
+    <span><i class="sw" style="background:#fff4e0;border-color:#b86e00"></i>Review and approval</span>
+    <span><i class="sw" style="background:#efeafb;border-color:#6a4bb3"></i>Determination and service</span>
+    <span><i class="sw" style="background:#fde9ea;border-color:#b3343f"></i>Objection</span>
+    <span><i class="sw" style="background:#fce8f3;border-color:#a3336f"></i>Appeal</span>
+    <span><i class="sw" style="background:#eceff3;border-color:#3f4957"></i>Endings (thick border = final)</span>
+  </div>
+  <ul class="small" style="margin-top:6pt">
+    <li>Each arrow names the step and, in brackets, who may take it.</li>
+    <li><b>*</b> means a written reason is mandatory and is recorded permanently with the step.</li>
+    <li>A dashed arrow opens a <i>new</i> case linked to the old one. <b>↺</b> marks the endings from which that can happen.</li>
+    <li>Dark tabs connect Part 1 and Part 2.</li>
+    <li>Two further statuses, <i>Finalisation failed</i> and <i>Notice failed</i>, are reserved for future error handling; no step leads to them today.</li>
+  </ul>
+</section>
+
+<section class="wide">
+  <h2>Figure 2 — Complete case flow, Part 1: opening to the served notice</h2>
+  <figure>{{FLOW_PART1}}</figure>
+</section>
+
+<section class="wide">
+  <h2>Figure 3 — Complete case flow, Part 2: after the notice</h2>
+  <figure>{{FLOW_PART2}}</figure>
+</section>
+
+<!-- ============================== 5 JOURNEYS ============================== -->
+<section>
+  <h2>5. Every possible case journey</h2>
+  <p>These are the distinct ways a case can travel through the platform. Several can combine: for example, a case can
+    be returned for rework twice, then approved, served, objected to and reassessed.</p>
+
+  <div class="journey"><b>1. Straightforward assessment, paid.</b> Opened, evidence retrieved, assigned, prepared, calculated, reviewed, approved, finalised, notice served; the taxpayer pays in full; the case is settled and closed.
+    <div class="path">Initiated → Data ready → Assigned → In preparation → Calculated → Under review → Reviewed → Pending approval → Approved → Finalised → Notice generated → Notice served → Response window open → Settled → Closed</div></div>
+  <div class="journey"><b>2. No response from the taxpayer.</b> As above, but the response window lapses with no objection; the case closes automatically.
+    <div class="path">… → Response window open → Closed</div></div>
+  <div class="journey"><b>3. Information requested during preparation.</b> The assessor asks the taxpayer for information; the case waits until the response is recorded or the due date passes, then preparation continues.
+    <div class="path">In preparation → Awaiting taxpayer → In preparation</div></div>
+  <div class="journey"><b>4. Returned by the reviewer.</b> The reviewer returns the case with a reason; the assessor reworks it and resubmits.
+    <div class="path">Under review → Returned for rework → In preparation → … → Under review</div></div>
+  <div class="journey"><b>5. Rejected by the approver.</b> The approver rejects with a reason; the case goes back to preparation and through review and approval again.
+    <div class="path">Pending approval → Rejected by approver → In preparation → …</div></div>
+  <div class="journey"><b>6. Cancelled before work begins.</b> A supervisor cancels a newly opened case, with a reason (for example, opened against the wrong period).
+    <div class="path">Initiated → Cancelled</div></div>
+  <div class="journey"><b>7. Time-barred.</b> The legal time limit for assessing passes while the case is still being opened or prepared. Automatic time-bar is off by default and never applies under legal hold.
+    <div class="path">Initiated or In preparation → Time-barred</div></div>
+  <div class="journey"><b>8. Written off.</b> After the notice, a supervisor writes off a liability that cannot be collected, with a reason.
+    <div class="path">Response window open → Written off</div></div>
+  <div class="journey"><b>9. Objection allowed.</b> The taxpayer objects; the objection officer allows it; the case is reassessed and goes through review and approval again before a new figure is served.
+    <div class="path">Response window open → Under objection → Objection allowed → Reassessment opened → In preparation → …</div></div>
+  <div class="journey"><b>10. Objection partly allowed.</b> As journey 9, for a partial change.
+    <div class="path">Under objection → Objection partly allowed → Reassessment opened → …</div></div>
+  <div class="journey"><b>11. Objection rejected, no appeal.</b> The objection is rejected and the case is closed.
+    <div class="path">Under objection → Objection rejected → Closed</div></div>
+  <div class="journey"><b>12. Appeal: assessment upheld.</b> The taxpayer appeals; the forum upholds the assessment; the taxpayer pays; the case settles and closes.
+    <div class="path">Objection rejected → Under appeal → Appeal upheld → Settled → Closed</div></div>
+  <div class="journey"><b>13. Appeal: assessment varied.</b> The forum changes the figure; the case is reassessed to match and reviewed and approved again.
+    <div class="path">Under appeal → Appeal varied → Reassessment opened → …</div></div>
+  <div class="journey"><b>14. Appeal: remanded.</b> The forum sends the case back for a fresh determination; it is reassessed.
+    <div class="path">Under appeal → Appeal remanded → Reassessment opened → …</div></div>
+  <div class="journey"><b>15. Appeal: set aside.</b> The forum sets the assessment aside; the case is closed.
+    <div class="path">Under appeal → Appeal set aside → Closed</div></div>
+  <div class="journey"><b>16. New information after the case has ended.</b> A closed, settled or written-off case is reassessed on new information by opening a successor case, linked to the original, which starts again at the beginning. Reassessing beyond the legal time limit needs a written reason and a named authoriser.
+    <div class="path">Closed / Settled / Written off ⇢ new case: Initiated → …</div></div>
+  <div class="journey"><b>17. Evidence source unavailable.</b> If a mandatory evidence source cannot answer, the case stays Initiated until it can, rather than being assessed on incomplete facts. It can still be cancelled or time-barred from there.
+    <div class="path">Initiated (waits) → Data ready</div></div>
+  <div class="journey"><b>18. Legal hold.</b> At any point a supervisor can place a case under legal hold, with a reason. The hold does not change the status; it blocks automatic time-bar and retention-driven disposal until lifted.</div>
+</section>
+
+<!-- ============================== 6 TRANSITIONS ============================== -->
+<section>
+  <h2>6. Complete reference: every step a case can take</h2>
+  <p>The platform's own definition of the case lifecycle, in full. A step not in this table cannot happen; a person
+    not listed against a step cannot take it; where "Reason" is marked, the step is refused without a written reason,
+    and the reason is kept permanently in the case history.</p>
+  <table>
+    <tr><th style="width:5%">#</th><th style="width:19%">From</th><th>Step</th><th style="width:19%">To</th><th style="width:22%">Who may take it</th><th style="width:7%">Reason</th></tr>
+    {{TRANSITIONS}}
+  </table>
+  <p class="small muted">Rows 45–47 are the successor-case paths: they open a new, linked case rather than moving the
+    existing one. Payment ("paid in full") is never a button: the platform concludes it from the taxpayer's account.</p>
+</section>
+
+<!-- ============================== 7 DELIVERED ============================== -->
+<section>
+  <h2>7. What has been delivered</h2>
+  <p>Everything in this section is built, connected to the screens, and covered by automated tests or a documented
+    run against a working instance.</p>
+  <table>
+    <tr><th style="width:24%">Area</th><th>What a user can do</th></tr>
+    <tr><td>Case register and work queues</td><td>Search, sort and page through every case they may see (the list is limited by role on the server); seven work queues by stage with counts; export the filtered register to CSV or Excel, with each export recorded and limited.</td></tr>
+    <tr><td>Case workbench</td><td>One screen per case with tabs for evidence, adjustments, calculation, deadlines and service levels, notices, disputes, closure, the process journey and the full history. It offers only the actions the person may take at that moment.</td></tr>
+    <tr><td>Evidence</td><td>Retrieve evidence from every configured source in one action; see the declared figures and each source's fingerprint.</td></tr>
+    <tr><td>Adjustments</td><td>Record adjustments through a configurable form; amounts are handled as exact text, never as approximate numbers.</td></tr>
+    <tr><td>Calculation</td><td>Calculate on the server; see every step of the working; compare versions to see what changed; preview a "what if".</td></tr>
+    <tr><td>Review and approval</td><td>Accept or return; route by amount band with a sentence explaining which band was chosen and why; approve or reject.</td></tr>
+    <tr><td>Notices</td><td>Issue the assessment notice from approved wording; download the PDF; serve it by any configured channel with proof of each attempt; verify any notice's integrity — officers internally, anyone publicly by reference.</td></tr>
+    <tr><td>Deadlines and service levels</td><td>Statutory deadlines computed on each country's working calendar, each with a plain sentence explaining how it was derived; internal service-level clocks shown separately.</td></tr>
+    <tr><td>Objections</td><td>File (including late, with lateness measured), rule on admissibility, assess the deposit where the country requires one, record committee opinions, decide.</td></tr>
+    <tr><td>Appeals</td><td>File to a forum recognised by the country, record hearings and the outcome, and track whether the outcome has been implemented.</td></tr>
+    <tr><td>Reassessment</td><td>Reassess in place after a dispute outcome, or open a linked successor case after closure; see every assessment of the period.</td></tr>
+    <tr><td>Payments, settlement and closure</td><td>Record payments against the taxpayer's account (a bank reference can only be credited once); settlement is concluded from the figures; close with a reason and retention period; legal hold; write-off with a reason; automatic nightly closure of settled cases.</td></tr>
+    <tr><td>Risk-based selection</td><td>Score taxpayers against the country's weighted risk rules, see which rules fired, and open cases from a run as a separate, capped act.</td></tr>
+    <tr><td>Taxpayer portal</td><td>A taxpayer sees their own served assessments in plain language, their notices, what they owe and their objections, and can file an objection.</td></tr>
+    <tr><td>Dashboard and reports</td><td>A dashboard scoped to the viewer, with totals shown per currency; seven management reports (assessment summary, collection, adjustment analysis, dispute outcomes, ageing, deadline exposure, unserved notices) and a reconciliation report.</td></tr>
+    <tr><td>Forms</td><td>A visual form builder with live preview and publishing; the same form engine validates in the browser and again on the server.</td></tr>
+    <tr><td>Process coordination</td><td>A workflow engine coordinates who is asked to act and when, with task inboxes and timers; a process modeller lets an administrator check and deploy a process definition; each case shows where it has reached.</td></tr>
+    <tr><td>Security and audit</td><td>Single sign-on; a permission catalogue in which every route must be listed or it is refused; a permanent, tamper-resistant case history; redacted access logs; document access history.</td></tr>
+    <tr><td>Languages and themes</td><td>The screens are built on display keys for translation, with right-to-left support; light and dark themes.</td></tr>
+    <tr><td>Operations</td><td>Six scheduled jobs (notifications, retries, exports, deadline sweep, auto-closure, workflow reconciliation) that are safe to run on several servers; a security boundary probe; a disaster-recovery rehearsal that restores the database and proves every figure matches.</td></tr>
+  </table>
+</section>
+
+<!-- ============================== 8 PARTIAL ============================== -->
+<section>
+  <h2>8. What is partly delivered</h2>
+  <p>These work, but with a stated limit. Each limit is also scheduled in the roadmap.</p>
+  <table>
+    <tr><th style="width:26%">Capability</th><th>What works</th><th style="width:34%">The limit today</th></tr>
+    <tr><td>Approval by amount band</td><td>The case is routed to the band for its amount; the band and its rule are recorded.</td><td>The approval step accepts any approver level; a band's required level and a second approval at level 3 are not yet enforced.</td></tr>
+    <tr><td>Multi-factor sign-in</td><td>Configured for every officer account.</td><td>Not switched on; an environment decision.</td></tr>
+    <tr><td>Evidence sources</td><td>Filed return and taxpayer account, through replaceable interfaces.</td><td>Both read the platform's own tables; no external filing system, bank feed or registry is connected yet.</td></tr>
+    <tr><td>Notifications</td><td>E-mail and in-portal messages, queued, retried and recorded.</td><td>No SMS provider; templates in English only.</td></tr>
+    <tr><td>Rule sets</td><td>Versioned, date-effective, dual-control publishing, and a simulator that replays a draft over past cases.</td><td>New rule sets are loaded as data by the delivery team; there is no editing screen yet.</td></tr>
+    <tr><td>Configurable forms</td><td>The adjustment form is fully configurable.</td><td>The other assessment forms (including objection and appeal) are built into the screens.</td></tr>
+    <tr><td>Process coordination</td><td>The engine coordinates from opening up to the objection being filed.</td><td>Objection, appeal and reassessment are worked through the screens without engine coordination; review and approval escalation timers are not modelled.</td></tr>
+    <tr><td>Taxpayer portal</td><td>Assessments, notices, account, objections.</td><td>No appeal filing, payment or reply to information requests yet.</td></tr>
+    <tr><td>Languages</td><td>English throughout; the Arabic language and right-to-left layout exist.</td><td>No Arabic labels or notice wording yet; Arabic PDFs are refused rather than rendered blank.</td></tr>
+    <tr><td>Administration</td><td>View the permission catalogue, approval bands and scheduled jobs.</td><td>Users, roles, reference lists and labels cannot yet be edited on screen.</td></tr>
+    <tr><td>Time-bar</td><td>Built and bounded by strict rules.</td><td>Off by default; no jurisdiction yet configures the limitation deadline it needs.</td></tr>
+  </table>
+</section>
+
+<!-- ============================== 9 ROADMAP ============================== -->
+<section>
+  <h2>9. Roadmap: what is pending, in phases</h2>
+  <p>The platform's plan describes phases 0 to 8, which have been built with the exceptions listed here. The phasing
+    below is <b>a proposal for sequencing the remaining work</b>, grouped so that each phase delivers something
+    usable. It is to be agreed with leadership and the first client; order and scope may change with their priorities.</p>
+
+  <h3>Phase 9 — Production readiness and independent assurance</h3>
+  <ul>
+    <li>Tax subject-matter expert sign-off of every rule, rate and deadline, and of the golden calculation tests.</li>
+    <li>User acceptance testing with tax officers (the 12-scenario pack is prepared).</li>
+    <li>Independent penetration test; accessibility audit to WCAG 2.1 AA; performance testing of calculation,
+      notice generation and concurrent users.</li>
+    <li>Deployment packaging (container images and orchestration), environment promotion, monitoring and metrics,
+      operational runbooks; disaster recovery extended to document storage, identity and in-flight workflow timers.</li>
+    <li>End-to-end browser tests and the workflow engine's tests run automatically on every change.</li>
+    <li>Multi-factor sign-in switched on; captcha on public verification.</li>
+  </ul>
+
+  <h3>Phase 10 — Control completeness</h3>
+  <ul>
+    <li>Enforce the approver level required by each amount band, and the second approval at the highest level.</li>
+    <li>Write-off authority limits; assessor override of a calculated figure, with justification and approval.</li>
+    <li>A rule-set publisher may not work cases computed under that rule set.</li>
+    <li>Escalation timers for overdue review and approval; time-boxed delegation of authority.</li>
+    <li>Configurable "deemed allowed" objections and late-filing condonation; a disposal list for cases past retention.</li>
+  </ul>
+
+  <h3>Phase 11 — Connections to the authority's systems</h3>
+  <ul>
+    <li>Filed-return system, payment ledger and revenue accounting, taxpayer registry — each through its existing
+      interface, so the tax logic does not change.</li>
+    <li>Digital signature and verification QR code on notices; SMS gateway.</li>
+    <li>Currency conversion where a jurisdiction needs it.</li>
+  </ul>
+
+  <h3>Phase 12 — Configuration self-service</h3>
+  <ul>
+    <li>Screens to author and version rule sets (rates, bands, thresholds, penalties, interest), deadlines, and
+      reference lists and labels; user and role administration.</li>
+    <li>All eighteen assessment forms as configurable templates, including jurisdiction-specific objection and appeal
+      forms.</li>
+    <li>Configuration promoted between environments as reviewed files, with two-person approval.</li>
+  </ul>
+
+  <h3>Phase 13 — Taxpayer experience and language</h3>
+  <ul>
+    <li>Portal: appeal filing, payment, replies to information requests.</li>
+    <li>Arabic labels and notice wording, with right-to-left PDF notices.</li>
+    <li>Engine coordination of the objection and appeal stages.</li>
+  </ul>
+
+  <h3>Phase 14 — Breadth</h3>
+  <ul>
+    <li>Further tax types — VAT, withholding tax, personal income tax, excise — and individual taxpayers.</li>
+    <li>Risk-model feedback (selection measured against assessment yield), officer productivity and further analytics.</li>
+    <li>Further jurisdictions, using the method in section 10.</li>
+  </ul>
+</section>
+
+<!-- ============================== 10 JURISDICTIONS ============================== -->
+<section>
+  <h2>10. Jurisdictions: today, and how a new one is added</h2>
+  <h3>Configured today</h3>
+  <p>Both jurisdictions assess corporate income tax for companies. The United Kingdom is the first jurisdiction;
+    Saudi Arabia was configured to prove that a second country is data, not a rewrite.</p>
+  <table class="small">
+    <tr><th style="width:22%">Configuration</th><th>United Kingdom (GB) — Corporation Tax</th><th>Saudi Arabia (SA) — Corporate Income Tax</th></tr>
+    <tr><td>Currency</td><td>Pound sterling (GBP)</td><td>Saudi riyal (SAR)</td></tr>
+    <tr><td>Rule set</td><td>GB-CIT-FY2024, effective 1 April 2023</td><td>SA-CIT-2024, effective 1 January 2024</td></tr>
+    <tr><td>Rates</td><td>19% up to 50,000; 25% main rate to 250,000 with marginal relief</td><td>Flat 20%</td></tr>
+    <tr><td>Losses and credits</td><td>Losses oldest first; credits: double tax relief, withholding, advance payment</td><td>Losses oldest first; credits: withholding, advance payment, double tax relief</td></tr>
+    <tr><td>Penalties</td><td>Late filing: 100 on day 1, 100 more at 90 days, 10% at 180 days</td><td>Late filing 1% (capped); late payment 5% after 30 days (capped)</td></tr>
+    <tr><td>Interest</td><td>7.75% simple, 365-day year</td><td>5% simple, 360-day year</td></tr>
+    <tr><td>Deadlines</td><td>Filing 12 months after period end; payment 9 months and a day; objection 30 days from service; appeal 30 days from decision</td><td>Filing and payment 120 days after period end; objection 60 days from service; appeal 30 days from decision; information 20 working days</td></tr>
+    <tr><td>Working week</td><td>Monday–Friday; UK holidays</td><td>Sunday–Thursday; Saudi holidays</td></tr>
+    <tr><td>Deemed service</td><td>Registered post 2 working days; publication 7 days</td><td>Registered post 5 working days; publication 14 days</td></tr>
+    <tr><td>Approval bands</td><td>Up to 100k: level 1; to 1m: level 2; above: level 3 (two approvals)</td><td>Up to 500k: level 1; to 5m: level 2; above: level 3 (two approvals)</td></tr>
+    <tr><td>Objection deposit</td><td>None</td><td>10% of the disputed amount (minimum 1,000, maximum 500,000)</td></tr>
+    <tr><td>Appeal forums</td><td>First-tier Tribunal, Upper Tribunal, Court of Appeal</td><td>General Secretariat, Appellate Committee, Supreme Administrative Court</td></tr>
+    <tr><td>Retention</td><td>7 years / 20 years / permanent</td><td>10 years / 20 years / permanent</td></tr>
+    <tr><td>Risk rules</td><td>Non-filer, large loss, credit ratio, prior adjustment</td><td>Non-filer, prior adjustment</td></tr>
+    <tr><td>Notices</td><td>Assessment and demand, in English</td><td>Assessment, in English (Arabic pending)</td></tr>
+  </table>
+  <p class="small muted">All figures are illustrative and await tax-expert certification. Saudi Arabia has no golden
+    calculation tests yet. For a production UK deployment, the UK reference lists, tax type and holidays (loaded today
+    with the demonstration data) will be moved into the permanent configuration.</p>
+
+  <h3>How a new jurisdiction is added</h3>
+  <p>A new country is added by adding configuration: no change to the platform's code is needed for anything the
+    platform already knows how to do. The steps are:</p>
+  <ol>
+    <li><b>Currency and tax type</b> — the currency and its decimal places; each tax type with its default currency.</li>
+    <li><b>Working calendar</b> — the weekend days and the public holidays.</li>
+    <li><b>Reference lists</b> — adjustment types and reasons, objection grounds, appeal forums, closure reasons and retention classes.</li>
+    <li><b>Rule set</b> — rates and bands, thresholds, loss rules, credit order, penalties, interest and rounding, dated from when they apply; published by a second person.</li>
+    <li><b>Statutory deadlines</b> — filing, payment, objection, appeal and information-response periods, each as "so many days or months from an event", on calendar or working days (and, if wanted, the limitation period).</li>
+    <li><b>Deemed-service rules</b> — when a notice counts as served for each delivery channel.</li>
+    <li><b>Approval bands</b> — the amount ranges and the approver level and number of approvals for each.</li>
+    <li><b>Notice wording</b> — each notice type in each language.</li>
+    <li><b>Objection deposit</b> — if the country requires one.</li>
+    <li><b>Service levels and risk rules</b> — internal targets, and weighted selection rules.</li>
+    <li><b>Notifications and labels</b> — messages and screen labels in each language.</li>
+    <li><b>Forms</b> — the tax return and, where needed, adjusted assessment forms, built in the form builder.</li>
+    <li><b>Taxpayers</b> — normally from the country's registry.</li>
+    <li><b>Assurance</b> — a set of golden calculation tests signed by a local tax expert, and a simulation of the rule set over sample cases before it is published.</li>
+  </ol>
+  <p>The process definition is shared and takes its durations from the country's deadlines, so it does not change.</p>
+  <div class="callout">
+    <b>When code is needed.</b> Only when a country needs something the platform has never done: a new kind of
+    calculation rule, a new risk indicator, a new deadline trigger or calendar rule, a new delivery channel (for
+    example SMS), non-Latin PDF notices, currency conversion, or — until those forms become configurable —
+    country-specific objection and appeal forms. Each is added once and is then available to every jurisdiction.
+  </div>
+</section>
+
+<!-- ============================== 11 SAFEGUARDS ============================== -->
+<section>
+  <h2>11. Safeguards built into the platform</h2>
+  <table>
+    <tr><th style="width:26%">Safeguard</th><th>What it means</th><th style="width:34%">Why it matters</th></tr>
+    <tr><td>Exact money</td><td>All amounts use exact decimal arithmetic and statutory rounding rules; ordinary computer arithmetic on money is blocked automatically. The money component has 100% test coverage.</td><td>A rounding error becomes a wrong liability on every case calculated after it.</td></tr>
+    <tr><td>Explainable calculation</td><td>The browser never calculates. Each result stores its full working, the rule-set version and a fingerprint of its inputs.</td><td>Any figure can be reproduced and explained in an appeal or in court.</td></tr>
+    <tr><td>Golden tests</td><td>42 complete cases pin inputs, results and working; a rule change must show an intended, reviewed difference.</td><td>A silent change to anyone's liability is caught before release.</td></tr>
+    <tr><td>Permanent case history</td><td>Every step writes one history entry in the same transaction; the database itself refuses edits or deletions of the history, even by an administrator of the database.</td><td>The record of who did what cannot be rewritten.</td></tr>
+    <tr><td>Fail-safe access</td><td>An action not in the permission catalogue is refused to everyone; an outage refuses rather than allows.</td><td>A missed setting or an outage never opens access.</td></tr>
+    <tr><td>Separation of duties</td><td>Preparer, reviewer and approver must be different people; figures are locked while under review and approval.</td><td>Four eyes on every legal figure; the approver approves what the reviewer saw.</td></tr>
+    <tr><td>Configuration cannot run code</td><td>Configuration chooses from a fixed list of behaviours; it never contains queries or formulas.</td><td>Administrative settings cannot become a route for attack.</td></tr>
+    <tr><td>Frozen evidence and determinations</td><td>Evidence is fingerprinted and frozen at submission; a finalised figure can only change by reassessment with grounds.</td><td>The facts and the figure a decision rested on stay provable.</td></tr>
+    <tr><td>Deadlines computed, never typed</td><td>Every statutory date is calculated from the recorded service date on the right calendar, with its derivation.</td><td>A wrong statutory window is legal exposure.</td></tr>
+    <tr><td>Bounded time-bar</td><td>Automatic time-bar is off by default and strictly limited when on; never under legal hold.</td><td>A time-bar ends a collectable debt and cannot be undone.</td></tr>
+    <tr><td>Notice integrity</td><td>Each notice has a fingerprint that officers and the public can verify.</td><td>A taxpayer or court can check a notice is unaltered.</td></tr>
+    <tr><td>Taxpayer isolation</td><td>A taxpayer's access is decided by recorded authority, never by anything sent from the browser.</td><td>No taxpayer can see another's affairs.</td></tr>
+    <tr><td>Controlled exports</td><td>Every export is recorded, scoped to the requester, rate-limited and protected against spreadsheet formula injection.</td><td>The register cannot be copied out anonymously.</td></tr>
+  </table>
+</section>
+
+<!-- ============================== 12 ARCHITECTURE ============================== -->
+<section>
+  <h2>12. Architecture at a glance</h2>
+  <figure>{{ARCHITECTURE}}<figcaption>Figure 4 — The main components. External systems connect through interfaces, so replacing a provider does not touch the tax logic.</figcaption></figure>
+  <ul>
+    <li><b>One language across the stack</b> (TypeScript) for the screens, the server and the form engine, so the same
+      form rules run in the browser and on the server.</li>
+    <li><b>A modular monolith</b>: one server application with strictly separated modules (platform, forms, workflow,
+      tax assessment). Modules can be split into separate services later if load or team structure requires it.</li>
+    <li><b>PostgreSQL</b> is the system of record; <b>Redis</b> holds the permission cache and queues;
+      <b>Keycloak</b> provides identity; documents are held in <b>S3-compatible</b> storage.</li>
+    <li><b>Flowable</b> coordinates work but decides nothing about tax: the server alone decides a case's status. If
+      the engine is unavailable, cases are worked by hand and a reconciliation job reports any difference.</li>
+    <li>Designed to scale horizontally: the server and background worker can run as several copies behind a load
+      balancer, with job locks so scheduled work runs once.</li>
+  </ul>
+</section>
+
+<!-- ============================== 13 QUALITY ============================== -->
+<section>
+  <h2>13. Quality and assurance</h2>
+  <table>
+    <tr><th>Suite</th><th style="width:14%">Tests</th><th>What it proves</th></tr>
+    <tr><td>Money component</td><td class="c">74</td><td>Exact arithmetic and every rounding rule; 100% coverage, enforced on every change</td></tr>
+    <tr><td>Case lifecycle definition</td><td class="c">31</td><td>The lifecycle is internally consistent: one start, no way out of a final status, every step has someone allowed to take it, every status reachable, figures locked under review</td></tr>
+    <tr><td>Form engine</td><td class="c">108</td><td>The rules, formulas and validation shared by browser and server</td></tr>
+    <tr><td>Server (unit and integration)</td><td class="c">313</td><td>Including the 42 golden calculation cases, deadlines, limitation, permissions, security properties, exports, the process validator</td></tr>
+    <tr><td>Screens (unit)</td><td class="c">53</td><td>Screen components in a real browser</td></tr>
+    <tr><td>End to end</td><td class="c">43</td><td>Real browsers driving the real screens against the real server, identity service and database: the full lifecycle through six officers, role separation, the register and exports, the taxpayer portal, the process modeller, and a documented full cycle. All 43 passed on 30 September 2026; the documented cycle exercised all 44 defined steps through the screens, with a screenshot of each. Each test is recorded as one paced video.</td></tr>
+  </table>
+  <p>Every change is automatically checked for formatting, code rules (including the money and module-boundary
+    rules), architectural guards, type safety, the database migrations applied, undone and re-applied, the test suites,
+    the money coverage gate and known-vulnerable dependencies.</p>
+  <h3>Also in place</h3>
+  <ul>
+    <li>A security boundary probe of the running system: anonymous access, forged tokens, one taxpayer reaching
+      another's data, role separation, injection, and rate limits. It automates a penetration tester's first checks; it
+      is not a penetration test.</li>
+    <li>A disaster-recovery rehearsal that backs up, restores and proves every figure, fingerprint and count matches.</li>
+    <li>A load test at 920,000 cases and 200,000 taxpayers: the filtered register answered in 42 ms and the heaviest
+      report in under half a second (measured once, by hand).</li>
+  </ul>
+  <h3>Not yet done</h3>
+  <p>Tax-expert sign-off; user acceptance testing with officers; an independent penetration test; an accessibility
+    audit; repeatable performance testing; end-to-end and workflow-engine tests running automatically on every change.
+    All are in Phase 9.</p>
+</section>
+
+<!-- ============================== 14 INTEGRATIONS ============================== -->
+<section>
+  <h2>14. Connections to other systems</h2>
+  <table>
+    <tr><th style="width:26%">System</th><th style="width:16%">Status</th><th>Detail</th></tr>
+    <tr><td>Identity (Keycloak)</td><td><span class="tag t-ok">In place</span></td><td>Single sign-on for officers and taxpayers; can federate to the authority's own directory (to be decided).</td></tr>
+    <tr><td>Workflow engine (Flowable)</td><td><span class="tag t-ok">In place</span></td><td>Coordinates tasks and timers; the definition is deployed by an administrator.</td></tr>
+    <tr><td>Document storage</td><td><span class="tag t-ok">In place</span></td><td>S3-compatible; every read is checked against its fingerprint; access is logged.</td></tr>
+    <tr><td>E-mail</td><td><span class="tag t-ok">In place</span></td><td>Through any SMTP relay.</td></tr>
+    <tr><td>Filed-return system</td><td><span class="tag t-part">Internal</span></td><td>Reads returns filed through the platform's own forms; the external system connects through the same interface.</td></tr>
+    <tr><td>Payment ledger / revenue accounting</td><td><span class="tag t-part">Internal</span></td><td>An internal account of payments, credits and losses; the largest scope decision for a client.</td></tr>
+    <tr><td>Taxpayer registry</td><td><span class="tag t-part">Internal</span></td><td>Taxpayers held in the platform; the registry connection is planned.</td></tr>
+    <tr><td>Digital signature</td><td><span class="tag t-plan">Planned</span></td><td>Notices are fingerprinted and verifiable today; a signing service and QR code are planned.</td></tr>
+    <tr><td>SMS gateway</td><td><span class="tag t-plan">Planned</span></td><td>The channel exists; no provider is connected.</td></tr>
+    <tr><td>Courts and tribunals</td><td><span class="tag t-part">Manual</span></td><td>Appeal outcomes are recorded by officers, by design in this version.</td></tr>
+  </table>
+</section>
+
+<!-- ============================== 15 RISKS ============================== -->
+<section>
+  <h2>15. Known limitations and risks</h2>
+  <table>
+    <tr><th style="width:30%">Limitation</th><th>Consequence and mitigation</th></tr>
+    <tr><td>Tax content not yet certified</td><td>Rates and deadlines are illustrative. Mitigation: expert sign-off in Phase 9, before any live use; the golden tests make every change reviewable.</td></tr>
+    <tr><td>Approver level not enforced at approval</td><td>Any approver can approve a case routed to a higher band, although the band is recorded. Mitigation: Phase 10; until then, approval rights should be granted with this in mind.</td></tr>
+    <tr><td>Multi-factor sign-in not switched on</td><td>Configured but not active. Mitigation: switch on per environment in Phase 9.</td></tr>
+    <tr><td>Notices not digitally signed</td><td>Integrity rests on the fingerprint and verification service. Mitigation: signing service in Phase 11.</td></tr>
+    <tr><td>No production packaging yet</td><td>The backing services run in containers; the applications are not yet packaged for production. Mitigation: Phase 9.</td></tr>
+    <tr><td>External systems not connected</td><td>Evidence and payments come from internal data. Mitigation: Phase 11, through existing interfaces; the scope depends on each client's systems.</td></tr>
+    <tr><td>Arabic content missing</td><td>Arabic screens would show untranslated keys; Arabic notices are refused. Mitigation: Phase 13.</td></tr>
+    <tr><td>Performance measured once</td><td>Register performance is good at 920k cases; calculation and notice throughput are not yet measured. Mitigation: Phase 9 performance testing.</td></tr>
+  </table>
+</section>
+
+<!-- ============================== 16 GLOSSARY ============================== -->
+<section>
+  <h2>16. Glossary</h2>
+  <table class="small">
+    <tr><th style="width:24%">Term</th><th>Meaning</th></tr>
+    <tr><td>Assessment / case</td><td>One assessment of one taxpayer, for one tax and one period.</td></tr>
+    <tr><td>Declared vs assessed</td><td>What the taxpayer filed, and what the authority determines.</td></tr>
+    <tr><td>Adjustment</td><td>A change from the declared to the assessed figure, with its type, reason, amount and explanation.</td></tr>
+    <tr><td>Evidence snapshot</td><td>The source data as retrieved, fingerprinted and never altered.</td></tr>
+    <tr><td>Rule set</td><td>A dated, versioned set of a country's tax rules used by the calculation.</td></tr>
+    <tr><td>Calculation trace</td><td>The stored, step-by-step working behind a figure.</td></tr>
+    <tr><td>Finalisation</td><td>The point at which an approved figure becomes the legal determination.</td></tr>
+    <tr><td>Notice / service</td><td>The legal document given to the taxpayer, and its delivery; statutory periods run from the service date.</td></tr>
+    <tr><td>Deemed service</td><td>A rule that treats a notice as served a set time after sending, without proof of receipt.</td></tr>
+    <tr><td>Objection</td><td>The taxpayer's first challenge to an assessment, decided within the authority.</td></tr>
+    <tr><td>Admissibility / condonation</td><td>Whether an objection will be heard; accepting one filed late.</td></tr>
+    <tr><td>Appeal / forum</td><td>A challenge decided outside the authority; the tribunal, court or committee that hears it.</td></tr>
+    <tr><td>Upheld / varied / set aside / remanded</td><td>The forum keeps the assessment; changes it; cancels it; sends it back for a fresh decision.</td></tr>
+    <tr><td>Reassessment</td><td>A revised assessment — in place after a dispute decision, or as a linked successor case after closure.</td></tr>
+    <tr><td>Limitation / time-bar</td><td>The legal time limit for assessing; a case that passes it is time-barred.</td></tr>
+    <tr><td>Settlement / write-off</td><td>The liability paid in full; an uncollectable liability abandoned with a reason.</td></tr>
+    <tr><td>Legal hold</td><td>A block on automatic time-bar and disposal while a matter is pending.</td></tr>
+    <tr><td>Retention</td><td>How long a closed case must be kept before it may be disposed of.</td></tr>
+    <tr><td>Separation of duties</td><td>The rule that preparer, reviewer and approver must be different people.</td></tr>
+    <tr><td>SLA vs statutory deadline</td><td>An internal service target, and a date set by law; shown separately.</td></tr>
+    <tr><td>Golden case</td><td>A complete test case whose expected result and working are fixed, so any change is visible.</td></tr>
+  </table>
+  <p class="small muted" style="margin-top:12pt">Prepared from the platform's source code, tests, configuration,
+    architecture decision records and a running instance, 30 September 2026. Counts reflect the platform at that
+    date.</p>
+</section>
+
+</body>
+</html>
