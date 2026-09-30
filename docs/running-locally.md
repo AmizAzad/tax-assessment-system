@@ -335,6 +335,21 @@ mvn spring-boot:run
 
 Starts on **http://localhost:8080**, creating its tables in the `flowable` schema on first run. Health: http://localhost:8080/actuator/health
 
+**Then deploy the process definition, once:**
+
+```powershell
+npm run bpmn:deploy
+```
+
+A fresh engine has no definitions. Deployment is deliberately an act rather
+than a boot step (an edited file should not take effect because somebody
+restarted a pod), so until an administrator deploys, every case opened is
+worked by hand and the engine answers each start with
+`No process definition found for key 'TAX_ASSESSMENT_MAIN'`. The script signs
+in as the seeded `admin-tax` and calls `POST /api/v1/processes/deploy/standard`,
+which validates the definition first, exactly as the Process Modeller's Deploy
+button does. Running it again with an unchanged file is a no-op.
+
 **The API drives it.** Opening a case starts a process, the engine calls back to
 retrieve evidence, and a task lands in the right officer's inbox. That loop is
 §19, which is the section to read — this one only covers starting the process.
@@ -437,7 +452,6 @@ Also working, and added after the sections below were first written:
 | Arabic notice PDFs                       | `pdfkit` is Latin-1; an Arabic notice is refused, not blank       |
 | A live bank feed or withholding register | Both evidence providers read our own tables (ADR-010)             |
 | Dispute forms as DynaForms templates     | The adjustment form is one; objection and appeal forms are markup |
-| A Playwright end-to-end suite            | Integration tests plus the boundary probe, which is not the same  |
 | An axe accessibility audit               | The keyboard and focus work is done; nothing has been audited     |
 
 And one caveat that is not a missing feature: **every rate, penalty, interest
